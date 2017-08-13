@@ -32,7 +32,7 @@
    let alph = ['a'-'z']
    let lam = ['?'] 
    rule identifier = parse
-          | space+       {identifier lexbuf}
+   | space+       {identifier lexbuf}
    | new_line+         {Lexing.new_line lexbuf; identifier lexbuf }
    | alph+(alph*digit*)* as name      { IDENTIFIER(name)      }
    | eof        {raise Eof}
@@ -41,8 +41,9 @@
    | '(' { OP_BR }
    | ')' { CL_BR }
    | '.' { DOT }
+   | "->" { ARROW }
    | _  {printf "Found wrong token";ERROR}
-
+  
   {
    let main () = 
            
