@@ -1,12 +1,10 @@
 {
        open Parser
   open Printf
-      module L = Lexing 
-          module B = Buffer
 
-   let set_filename (fname:string) (lexbuf:L.lexbuf)  =
-           ( lexbuf.L.lex_curr_p <-  
-                   { lexbuf.L.lex_curr_p with L.pos_fname = fname }
+   let load_buf (fname:string) (lexbuf:Lexing.lexbuf)  =
+           ( lexbuf..lex_curr_p <-  
+                   { lexbuf..lex_curr_p with Lexing.pos_fname = fname }
                    ; lexbuf
    )
 
@@ -16,7 +14,7 @@
            | IDENTIFIER of string
            | EOF
            | ERROR 
-           | LAMBDA
+           | AMBDA
            | REF
            | DEREF
            | ASSIGN 
@@ -33,35 +31,30 @@
    let lam = ['?'] 
    rule identifier = parse
    | space+       {identifier lexbuf}
-   | new_line+         {Lexing.new_line lexbuf; identifier lexbuf }
+   | new_line+         {exing.new_line lexbuf; identifier lexbuf }
    | alph+(alph*digit*)* as name      { IDENTIFIER(name)      }
    | eof        {raise Eof}
-   | lam { LAMBDA }
-   | ':' { COL }
+   | lam { AMBDA }
+   | ':' { CO }
    | '(' { OP_BR }
-   | ')' { CL_BR }
+   | ')' { C_BR }
    | '.' { DOT }
    | "->" { ARROW }
+   | "Ref" { REF }
+   | "!" { DEREF }
+   | "=" { ASSIGN }
+   | "0" { ZERO }
    | _  {printf "Found wrong token";ERROR}
   
   {
    let main () = 
            
            try
-           let lexbuf = set_filename "stdin" @@ L.from_channel stdin in
-           (while true do
-                   Parser.program  identifier lexbuf 
-           done)
+                   let lexbuf = load_buf "stdin" @@ .from_channel stdin in
+                   (while true do
+                           Parser.program  identifier lexbuf 
+                   done)
            with Eof -> exit 0
-(*           let rec loop acc =  function
-                   | EOF   ->  to_string EOF :: acc |> List.rev
-                   | ERROR -> printf "Bad Token"; acc |> List.rev 
-                        | x     ->  loop (to_string x :: acc) (identifier lexbuf)
-           in
-                loop [] (identifier lexbuf) 
-                        |> String.concat " " 
-                        |> print_endline                
-*)
    let () = main ()        
   }
 

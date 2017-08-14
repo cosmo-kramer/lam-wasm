@@ -17,7 +17,7 @@ open Utils
 %token OP_BR
 %token CL_BR
 %token ARROW
-
+%token ZERO
 
 %start program
 %type <unit> program
@@ -28,24 +28,27 @@ open Utils
 program:  term {
         
         printf "Pretty print:    %s      \n"  (to_string $1) ; 
-                printf "\n %s \n" (pr_type (typeOf global_context $1));
-                printf "Reduced ->   %s \n" (to_string (eval global_context $1));
+                printf "\n %s \n" (pr_type (typeOf Context.empty $1));
+                printf "Reduced ->   %s \n" (let (v, _) = (eval Context.empty Store.empty $1) in (to_string v));
 
 }
 
 type_identifier : type_identifier2 ARROW type_identifier2 {
         F ($1, $3)
 }
-| IDENTIFIER ARROW IDENTIFIER{
-        F (I, I)
+| IDENTIFIER {
+        I
+}
+| REF type_identifier{
+        Tref $2
+}
+type_identifier2 : OP_BR type_identifier CL_BR {
+       $2 
 }
 | IDENTIFIER {
         I
 }
 
-type_identifier2 : OP_BR type_identifier CL_BR {
-       $2 
-}
 
 term : IDENTIFIER  {
         Var $1        
@@ -56,6 +59,20 @@ term : IDENTIFIER  {
 | OP_BR term term CL_BR {
         App ($2, $3)
 }
-
+| REF term{
+        Ref $2
+}
+| DEREF term{
+        Deref $2
+}
+| ASSIGN term term {
+        Assign ($2, $3)
+}
+| ZERO {
+        Zero
+}
+| OP_BR term CL_BR {
+        $2
+}
 
 %%
