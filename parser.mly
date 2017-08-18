@@ -17,8 +17,9 @@ open Utils
 %token OP_BR
 %token CL_BR
 %token ARROW
-%token ZERO
 
+
+%token <string> VAL  
 %start program
 %type <unit> program
 %type <term> term
@@ -29,7 +30,8 @@ program:  term {
         
         printf "Pretty print:    %s      \n"  (to_string $1) ; 
                 printf "\n %s \n" (pr_type (typeOf Context.empty $1));
-                printf "Code ->   %s \n" (gen_webAsm $1 Context.empty Closures.empty);
+        let fl = open_out "/home/abhishek/test.wast" in
+        Printf.fprintf fl "%s" (create_code $1);
 
 }
 
@@ -68,8 +70,8 @@ term : IDENTIFIER  {
 | ASSIGN term term {
         Assign ($2, $3)
 }
-| ZERO {
-        Zero
+| VAL {
+        Val (int_of_string $1)
 }
 | OP_BR term CL_BR {
         $2

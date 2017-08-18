@@ -43,7 +43,7 @@
    | "Ref" { REF }
    | "|" { DEREF }
    | "=" { ASSIGN }
-   | "0" { ZERO }
+   | ['0'-'9']+ as v { VAL v}
    | _  {printf "Found wrong token";ERROR}
   
   {

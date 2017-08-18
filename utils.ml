@@ -16,7 +16,7 @@ type term =
         | Assign of term*term
         | Location of int*ty
         | Unit
-        | Zero 
+        | Val of int 
 
 let rec pr_type = function 
         | I -> "I"
@@ -34,7 +34,7 @@ let rec to_string = function
         | Assign (t1, t2) -> to_string t1^" := "^to_string t2
         | Location (i, tp) -> string_of_int i
         | Unit -> "Unit"
-        | Zero -> "0"
+        | Val x -> string_of_int x
         
         
         (* Exceptions *)
@@ -44,7 +44,7 @@ exception Unbound_Var of string
 exception Eval_error of string 
 
 let func_num = ref 0
-let get_func_num: int = (func_num := !func_num + 1; !func_num) 
+let get_func_num () = (func_num := !func_num + 1; !func_num) 
 
 (* Context Initialization *)
 module Context = Map.Make(String)
@@ -72,39 +72,58 @@ let rec typeOf ctx t = match t with
         | Assign (_, _) -> Unit
         | Location (i, tp) -> Tref tp
         | Unit -> Unit 
-        | Zero -> I
+        | Val _ -> I
 
 let funcs_code = ref ""
 let heap_ctr = ref 0
 
 
-let create_code t = let main_code = gen_webAsm Context.empty Closures.empty in
-                    
-                    let code = ref "(module \n
-                                      (table 
 
 let rec gen_webAsm t ctx clsr = match t with
                            | Var x -> (try 
                                         (Context.find x ctx);
-                                        "(get_local $"^x^")"
+                                        ("(get_local $"^x^")", clsr)
                                       with Not_found -> raise (Unbound_Var x))
-                           | Abs (name, arg_type, func_body) -> let f_num: int = get_func_num in
-                                                                let header = "func $FF"^string_of_int f_num^" (param $"^name^"i32) (result i32) (\n" in
-                                                                let new_clsr = Closures.add f_num !heap_ctr clsr in  
+                           | Abs (name, arg_type, func_body) -> (let f_num: int = get_func_num () in
+                                                                let header = "(func $FF"^string_of_int f_num^" (param $"^name^" i32) (result i32) \n" in
+                                                                let new_clsr = Closures.add f_num !heap_ctr clsr in 
                                                                 let cl_it = ref 0 in 
-                                                                let cl_init = ref ("(i32.store offset="^string_of_int (4*(!cl_it))^"\n(i32.const "^string_of_int f_num^")\n(i32.const "^string_of_int !heap_ctr^")\n)\n") in 
+                                                                let cl_init = ref ("(i32.store \n(i32.const "^string_of_int !heap_ctr^")\n(i32.const "^string_of_int (f_num-1)^")\n)\n") in 
                                                                 
                                                                 Context.iter (fun k v -> heap_ctr := !heap_ctr + 4; 
                                                                               cl_it := !cl_it+1;
-                                                                             cl_init := (!cl_init)^"(i32.store offset="^string_of_int (4*(!cl_it))^"\n(get_local $"^k^")\n(i32.const "^string_of_int !heap_ctr^")\n)\n") ctx; 
+                                                                             cl_init := (!cl_init)^"(i32.store \n(i32.const "^string_of_int !heap_ctr^")\n(get_local $"^k^")\n)\n") ctx; 
+                                                                let get_cl = ref "" in
+                                                                
+                                                                let cl_addr = ref (Closures.find f_num new_clsr) in 
+                                                                Context.iter (fun k v -> 
+                                                                        cl_addr := !cl_addr+4;
+                                                                        get_cl := !get_cl^(
+                                                                                "(local $"^k^" i32)\n(i32.load (i32.const "^
+                                                                                string_of_int !cl_addr^")\n)\n(set_local $"^k^")\n")) ctx; 
                                                                 let new_ctx = Context.add name arg_type ctx in
-                                                                let bd = gen_webAsm func_body new_ctx new_clsr in 
-                                                                funcs_code := !funcs_code^"\n\n"^header^bd^")\n";
-                                                                "( " ^ !cl_init ^ "\n(i32.const "^string_of_int (Closures.find f_num new_clsr)^")"
-                                                                
-                                                                
+                                                                let (bd, new_clsr) = gen_webAsm func_body new_ctx new_clsr in 
+                                                                funcs_code := !funcs_code^"\n\n"^header^(!get_cl)^bd^")\n";
+                                                                try 
+                                                                (!cl_init ^ "\n(i32.const "^string_of_int (Closures.find f_num new_clsr)^")", new_clsr)
+                                                                with Not_found -> raise (Unbound_Var (string_of_int f_num))
+                                                                )  
+                           
+                          | App (t1, t2) -> let (code2, new_clsr) = gen_webAsm t2 ctx clsr in
+                                             let (code1, n_clsr) = gen_webAsm t1 ctx new_clsr in
+                                             (code2^code1^"(call_indirect $GG)\n", n_clsr)
+                                              
+                          | Val x -> ("(i32.const "^string_of_int x^")\n", clsr)
 
-                           | App (t1, t2) -> "Not yet ready!!\n" 
-                                        
 
 
+let create_code t = let (cd, clsr) = gen_webAsm t Context.empty Closures.empty in
+printf "%s \n|||||||||||||||||||||||\n\n" cd;
+                                       let tab_ins = ref "" in
+                                       (Closures.iter (fun k v -> tab_ins := (!tab_ins)^"(elem (i32.const "^string_of_int (k-1)^") $FF"^string_of_int k^")\n") clsr);
+                                       "(module \n"^
+                                       "(type $GG (func (param i32) (result i32)))\n"^
+                                        "(table " ^ string_of_int (Closures.cardinal clsr) ^ " anyfunc)\n"^(!tab_ins)^
+                                       "(memory $0 100)\n"^
+                                       "(export \"memory\" (memory $0))\n"^
+                                       "(export \"main\" (func $mm))\n" ^ !funcs_code ^ "\n (func $mm (result i32)"^cd^"\n)\n)" 
