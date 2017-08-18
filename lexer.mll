@@ -3,8 +3,8 @@
   open Printf
 
    let load_buf (fname:string) (lexbuf:Lexing.lexbuf)  =
-           ( lexbuf..lex_curr_p <-  
-                   { lexbuf..lex_curr_p with Lexing.pos_fname = fname }
+           ( lexbuf.Lexing.lex_curr_p <-  
+                   { lexbuf.Lexing.lex_curr_p with Lexing.pos_fname = fname }
                    ; lexbuf
    )
 
@@ -31,17 +31,17 @@
    let lam = ['?'] 
    rule identifier = parse
    | space+       {identifier lexbuf}
-   | new_line+         {exing.new_line lexbuf; identifier lexbuf }
+   | new_line+         {Lexing.new_line lexbuf; identifier lexbuf }
    | alph+(alph*digit*)* as name      { IDENTIFIER(name)      }
    | eof        {raise Eof}
-   | lam { AMBDA }
-   | ':' { CO }
+   | lam { LAMBDA }
+   | ':' { COL }
    | '(' { OP_BR }
-   | ')' { C_BR }
+   | ')' { CL_BR }
    | '.' { DOT }
    | "->" { ARROW }
    | "Ref" { REF }
-   | "!" { DEREF }
+   | "|" { DEREF }
    | "=" { ASSIGN }
    | "0" { ZERO }
    | _  {printf "Found wrong token";ERROR}
@@ -50,7 +50,7 @@
    let main () = 
            
            try
-                   let lexbuf = load_buf "stdin" @@ .from_channel stdin in
+                   let lexbuf = load_buf "stdin" @@ Lexing.from_channel stdin in
                    (while true do
                            Parser.program  identifier lexbuf 
                    done)

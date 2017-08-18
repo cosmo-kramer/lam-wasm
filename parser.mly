@@ -29,7 +29,7 @@ program:  term {
         
         printf "Pretty print:    %s      \n"  (to_string $1) ; 
                 printf "\n %s \n" (pr_type (typeOf Context.empty $1));
-                printf "Reduced ->   %s \n" (let (v, _) = (eval Context.empty Store.empty $1) in (to_string v));
+                printf "Code ->   %s \n" (gen_webAsm $1 Context.empty Closures.empty);
 
 }
 
