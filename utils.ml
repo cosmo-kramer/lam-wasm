@@ -86,6 +86,7 @@ let rec gen_webAsm t ctx clsr = match t with
                                       with Not_found -> raise (Unbound_Var x))
                            | Abs (name, arg_type, func_body) -> (let f_num: int = get_func_num () in
                                                                 let header = "(func $FF"^string_of_int f_num^" (param $"^name^" i32) (result i32) \n" in
+                                                                heap_ctr := !heap_ctr + 4;
                                                                 let new_clsr = Closures.add f_num !heap_ctr clsr in 
                                                                 let cl_it = ref 0 in 
                                                                 let cl_init = ref ("(i32.store \n(i32.const "^string_of_int !heap_ctr^")\n(i32.const "^string_of_int (f_num-1)^")\n)\n") in 
@@ -111,14 +112,20 @@ let rec gen_webAsm t ctx clsr = match t with
                            
                           | App (t1, t2) -> let (code2, new_clsr) = gen_webAsm t2 ctx clsr in
                                              let (code1, n_clsr) = gen_webAsm t1 ctx new_clsr in
-                                             (code2^code1^"(call_indirect $GG)\n", n_clsr)
+
+                                             (code2^code1^"(i32.load)\n(call_indirect $GG)\n", n_clsr)
                                               
                           | Val x -> ("(i32.const "^string_of_int x^")\n", clsr)
+                          | Ref t -> 
+                                     heap_ctr := !heap_ctr + 4;
+                                     let hc = !heap_ctr in 
+                                     let res = "\n(i32.const "^string_of_int hc ^ ")\n" in
+                                    let (cd, new_clsr) = gen_webAsm t ctx clsr in
+                                     (res ^ cd ^ "\n (i32.store) \n" ^ "(i32.const "^ string_of_int hc ^ ")\n", new_clsr)  
+                          | Deref t -> let (cd, new_clsr) = gen_webAsm t ctx clsr in
+                                       (cd ^ "\n(i32.load)\n", new_clsr)
 
-
-
-let create_code t = let (cd, clsr) = gen_webAsm t Context.empty Closures.empty in
-printf "%s \n|||||||||||||||||||||||\n\n" cd;
+let create_code t = let (cd, clsr) = (gen_webAsm t Context.empty Closures.empty) in
                                        let tab_ins = ref "" in
                                        (Closures.iter (fun k v -> tab_ins := (!tab_ins)^"(elem (i32.const "^string_of_int (k-1)^") $FF"^string_of_int k^")\n") clsr);
                                        "(module \n"^
