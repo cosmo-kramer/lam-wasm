@@ -28,9 +28,10 @@ open Utils
 
 program:  term {
         
-        printf "Pretty print:    %s      \n"  (to_string $1) ; 
-                printf "\n %s \n" (pr_type (typeOf Context.empty $1));
-        let fl = open_out "/home/abhishek/test.wast" in
+        (*        printf "Pretty print:    %s      \n"  (to_string $1) ; 
+                printf "\n %s \n" (pr_type (typeOf Context.empty $1));*)
+        typeOf Context.empty $1;
+        let fl = open_out "test.wast" in
         Printf.fprintf fl "%s" (create_code $1);
 
 }
