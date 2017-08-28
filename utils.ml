@@ -1,3 +1,4 @@
+open List 
 open Map
 open Printf
 
@@ -9,13 +10,19 @@ type ty =
 
 type term =
         | Var of string  
-        | Abs of string*ty*term   (* name, type, body *)
+        | Abs of string*ty*decs   (* name, type, body *)
         | App of term*term
         | Ref of term 
         | Deref of term
         | Assign of term*term
         | Unit
-        | Val of int 
+        | Val of int
+
+
+        and decs = 
+        | Term of term
+        | Decs of decs*term
+
 
 let rec pr_type = function 
         | I -> "I"
@@ -24,17 +31,19 @@ let rec pr_type = function
         | Unit -> "Unit"
 
 
-let rec to_string = function 
+let rec term_to_string = function 
         | Var name -> name
-        | Abs (name, tp, b) -> "/" ^ name ^ ".(" ^ to_string b ^ ")"
-        | App (t1, t2) -> to_string t1 ^ "( "^to_string t2^" )"
-        | Ref t -> "Ref ("^to_string t^")"
-        | Deref t -> "! ("^to_string t^")"
-        | Assign (t1, t2) -> to_string t1^" := "^to_string t2
+        | Abs (name, tp, b) -> "/" ^ name ^ ".(" ^ dec_to_string b ^ ")"
+        | App (t1, t2) -> term_to_string t1 ^ "( "^term_to_string t2^" )"
+        | Ref t -> "Ref ("^term_to_string t^")"
+        | Deref t -> "! ("^term_to_string t^")"
+        | Assign (t1, t2) -> term_to_string t1^" := "^term_to_string t2
         | Unit -> "Unit"
         | Val x -> string_of_int x
         
-        
+        and dec_to_string = function
+        | Term t -> term_to_string t
+        | Decs (d, t) -> (dec_to_string d)^"; "^(term_to_string t)
         (* Exceptions *)
 exception Type_resolution_failed of string
 exception Application_failed of string
@@ -48,12 +57,21 @@ let get_func_num () = (func_num := !func_num + 1; !func_num)
 module Context = Map.Make(String)
 module Closures = Map.Make(struct type t = int let compare : int -> int -> int = compare end)
 
-let rec typeOf ctx t = match t with 
+
+
+       
+let rec type_check ctx x = match x with
+        | Term t -> typeOf ctx t
+        | Decs (d, t) -> if sanity ctx d then type_check ctx d else raise (Type_resolution_failed "Non-unit expression")  
+and sanity ctx = function 
+        | Term t -> if typeOf ctx t == Unit then true else false
+        | Decs (d, t) -> if sanity ctx d then (typeOf ctx t = Unit) else false
+and typeOf ctx t :ty= match t with 
         | Var name ->  ( try 
                 Context.find name ctx
                         with Not_found -> raise (Type_resolution_failed ("Var "^name^" not found!")))
         | Abs (name, tp, b) -> let new_ctx = Context.add name tp ctx in 
-                                                F (tp, typeOf new_ctx b)
+                                                F (tp, type_check new_ctx b)
         | App (t1, t2) -> (match typeOf ctx t1 with
                                 | F (a, b) -> if (typeOf ctx t2) = a 
                                               then b
@@ -75,8 +93,10 @@ let funcs_code = ref ""
 let heap_ctr = ref 0
 
 
-
-let rec gen_webAsm t ctx clsr = match t with
+let rec gen_webAsm d ctx clsr = match d with
+        | Term t -> gen_webAsm_term t ctx clsr
+        | Decs (d1, t) -> let (f, new_clsr) = (gen_webAsm d1 ctx clsr) in let (s, n_clsr) = (gen_webAsm_term t ctx new_clsr) in (f^"\n\n" ^s, n_clsr) 
+and gen_webAsm_term t ctx clsr = match t with
                            | Var x -> (try 
                                         (Context.find x ctx);
                                         ("(get_local $"^x^")", clsr)
@@ -86,14 +106,15 @@ let rec gen_webAsm t ctx clsr = match t with
                                                                              " (param $"^name^" i32) (result i32) \n" in
                                                                 heap_ctr := !heap_ctr + 4;
                                                                 let new_clsr = Closures.add f_num !heap_ctr clsr in 
-                                                                let cl_it = ref 0 in 
                                                                 let cl_init = ref ("(i32.store \n(i32.const "^
                                                                                   string_of_int !heap_ctr^")\n(i32.const "^
                                                                                   string_of_int (f_num-1)^")\n)\n") in 
-                                                                
+                                                               
+                                                                                (* Store all values in ctx *) 
                                                                 Context.iter (fun k v -> heap_ctr := !heap_ctr + 4; 
-                                                                                   cl_it := !cl_it+1;
                                                                                    cl_init := (!cl_init)^
+                                                                                   "(i32.add  (get_global $dynamic_heap_ctr) (i32.const 4))\n"^
+                                                                                   
                                                                                    "(i32.store \n(i32.const "^
                                                                                    string_of_int !heap_ctr^
                                                                                    ")\n(get_local $"^k^")\n)\n"
@@ -118,8 +139,8 @@ let rec gen_webAsm t ctx clsr = match t with
                                                                 )  
                            
                           | App (t1, t2) -> (match (typeOf ctx t1) with
-                                            | F _ ->  let (code2, new_clsr) = gen_webAsm t2 ctx clsr in
-                                                      let (code1, n_clsr) = gen_webAsm t1 ctx new_clsr in
+                                            | F _ ->  let (code2, new_clsr) = gen_webAsm_term t2 ctx clsr in
+                                                      let (code1, n_clsr) = gen_webAsm_term t1 ctx new_clsr in
          
                                                       (code2^code1^"(i32.load)\n(call_indirect $GG)\n", n_clsr)
          
@@ -130,19 +151,19 @@ let rec gen_webAsm t ctx clsr = match t with
                           | Ref t -> heap_ctr := !heap_ctr + 4;
                                      let hc = !heap_ctr in 
                                      let res = "\n(i32.const "^string_of_int hc ^ ")\n" in
-                                     let (cd, new_clsr) = gen_webAsm t ctx clsr in
+                                     let (cd, new_clsr) = gen_webAsm_term t ctx clsr in
                                      (res ^ cd ^ "\n (i32.store) \n" 
                                      ^ "(i32.const "^ string_of_int hc 
                                      ^ ")\n", new_clsr)
 
-                          | Deref t -> let (cd, new_clsr) = gen_webAsm t ctx clsr in
+                          | Deref t -> let (cd, new_clsr) = gen_webAsm_term t ctx clsr in
                                        (cd ^ "\n(i32.load)\n", new_clsr)
                           | Assign (t1, t2) -> (match typeOf ctx t1 with
                                                 | Tref ty1 -> if ty1 != typeOf ctx t2 
                                                               then (raise (Eval_error "assignment type mismatch")) 
                                                               else
-                                                                (let (code1, new_clsr) = gen_webAsm t1 ctx clsr in
-                                                                 let (code2, new_clsr) = gen_webAsm t2 ctx new_clsr in
+                                                                (let (code1, new_clsr) = gen_webAsm_term t1 ctx clsr in
+                                                                 let (code2, new_clsr) = gen_webAsm_term t2 ctx new_clsr in
                                                                  (code1^code2^"(i32.store)\n", new_clsr)
                                                                 )
                                                 | _ -> raise (Eval_error "LHS in assignment not a Ref!"))
@@ -163,6 +184,7 @@ let create_code t = let (cd, clsr) = (gen_webAsm t Context.empty Closures.empty)
                                        "(type $GG (func (param i32) (result i32)))\n"^
                                         "(table " ^ string_of_int (Closures.cardinal clsr) ^ " anyfunc)\n"^(!tab_ins)^
                                        "(memory $0 100)\n"^
+                                       "(global $dynamic_heap_ctr (mut i32) (i32.const 0))\n"^
                                        "(export \"memory\" (memory $0))\n"^
                                        "(export \"main\" (func $mm))\n" ^ !funcs_code ^ "\n (func $mm (result i32)"^cd^"\n)\n)"
                                          

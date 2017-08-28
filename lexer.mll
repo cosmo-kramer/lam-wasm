@@ -33,7 +33,7 @@
    | space+       {identifier lexbuf}
    | new_line+         {Lexing.new_line lexbuf; identifier lexbuf }
    | alph+(alph*digit*)* as name      { IDENTIFIER(name)      }
-   | eof        {raise Eof}
+   | eof        { EOF }
    | lam { LAMBDA }
    | ':' { COL }
    | '(' { OP_BR }
@@ -43,9 +43,11 @@
    | "Ref" { REF }
    | "|" { DEREF }
    | "=" { ASSIGN }
+   | ';' { COMMA }
    | ['0'-'9']+ as v { VAL v}
    | _  {printf "Found wrong token";ERROR}
-  
+   | "public" { PUBLIC }
+   | "private" { PRIVATE }  
   {
    let main () = 
            
