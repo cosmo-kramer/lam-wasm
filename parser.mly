@@ -10,7 +10,7 @@ open Utils
 %token LAMBDA 
 %token REF
 %token DEREF
-%token ASSIGN
+%token EQ
 %token ERROR
 %token COL
 %token DOT
@@ -24,14 +24,14 @@ open Utils
 
 %token <string> VAL  
 %start program
+%type <specifier> specifier 
 %type <unit> program
 %type <term> term
-%type <decs> terms
+%type <terms> terms
 %type <ty> type_identifier 
 %%
 
 program: terms EOF {
-        printf "CCCCCCCCCCCCCCC\n";
         type_check Context.empty $1;
         printf "%s" (dec_to_string $1);
         
@@ -43,15 +43,15 @@ program: terms EOF {
 
 
 terms:  terms COMMA term {
-        printf "BBBBBBBBB\n";
         (*        printf "Pretty print:    %s      \n"  (to_string $1) ; 
                 printf "\n %s \n" (pr_type (typeOf Context.empty $1));*)
         
         Decs($1, $3)
 
 } | term  {
-        printf "AAAAAAAA\n";
         Term $1
+} | OP_BR terms CL_BR {
+        $2;
 }  
 
 type_identifier : type_identifier2 ARROW type_identifier2 {
@@ -70,13 +70,18 @@ type_identifier2 : OP_BR type_identifier CL_BR {
         I
 }
 
+specifier : PRIVATE {
+        Private
+}
+| PUBLIC {
+        Public
+}
 
 term : IDENTIFIER  {
         Var $1        
 }
 | LAMBDA IDENTIFIER COL type_identifier DOT OP_BR terms CL_BR {
-        printf "LAMM!\n";
-        Abs ($2, $4, $7) 
+        Abs ("", $2, $4, $7) 
 } 
 | OP_BR term term CL_BR {
         App ($2, $3)
@@ -87,7 +92,7 @@ term : IDENTIFIER  {
 | DEREF term{
         Deref $2
 }
-| ASSIGN term term {
+| EQ term term {
         Assign ($2, $3)
 }
 | VAL {
@@ -95,6 +100,9 @@ term : IDENTIFIER  {
 }
 | OP_BR term CL_BR {
         $2
+}
+| specifier IDENTIFIER EQ term {
+        Decl ($1, $2, $4)
 }
 
 %%

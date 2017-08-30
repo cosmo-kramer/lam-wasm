@@ -32,8 +32,9 @@
    rule identifier = parse
    | space+       {identifier lexbuf}
    | new_line+         {Lexing.new_line lexbuf; identifier lexbuf }
-   | alph+(alph*digit*)* as name      { IDENTIFIER(name)      }
    | eof        { EOF }
+   | "public" { PUBLIC }
+   | "private" { PRIVATE }  
    | lam { LAMBDA }
    | ':' { COL }
    | '(' { OP_BR }
@@ -42,13 +43,14 @@
    | "->" { ARROW }
    | "Ref" { REF }
    | "|" { DEREF }
-   | "=" { ASSIGN }
+   | "=" { EQ }
    | ';' { COMMA }
    | ['0'-'9']+ as v { VAL v}
+   | alph+(alph*digit*)* as name      { IDENTIFIER(name)      }
    | _  {printf "Found wrong token";ERROR}
-   | "public" { PUBLIC }
-   | "private" { PRIVATE }  
-  {
+
+   
+   {
    let main () = 
            
            try
