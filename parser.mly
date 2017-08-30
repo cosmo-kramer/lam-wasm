@@ -3,6 +3,7 @@ open Printf
 open Pervasives
 open Lexing
 open Utils
+open Gen_code
 %}
 
 %token <string> IDENTIFIER
@@ -34,7 +35,6 @@ open Utils
 program: terms EOF {
         type_check Context.empty $1;
         printf "%s" (dec_to_string $1);
-        
         
         let fl = open_out "test.wast" in
         Printf.fprintf fl "%s" (create_code $1);
@@ -101,8 +101,8 @@ term : IDENTIFIER  {
 | OP_BR term CL_BR {
         $2
 }
-| specifier IDENTIFIER EQ term {
-        Decl ($1, $2, $4)
+| specifier IDENTIFIER EQ OP_BR term CL_BR {
+        Decl ($1, $2, $5)
 }
 
 %%
