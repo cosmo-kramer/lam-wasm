@@ -18,7 +18,7 @@ open Gen_code
 %token OP_BR
 %token CL_BR
 %token ARROW
-%token COMMA 
+%token SCOL 
 %token PRIVATE
 %token PUBLIC
 %token EOF
@@ -30,23 +30,31 @@ open Gen_code
 %type <term> term
 %type <terms> terms
 %type <ty> type_identifier 
+%type <global_decls> global_decls
 %%
 
-program: terms EOF {
-        type_check Context.empty $1;
-        printf "%s" (dec_to_string $1);
+program: global_decls terms EOF {
+        type_check_decl $1 Context.empty;
+        type_check Context.empty $2;
+        printf "%s" (terms_to_string $2);
         
         let fl = open_out "test.wast" in
-        Printf.fprintf fl "%s" (create_code $1);
+        Printf.fprintf fl "%s" (create_code (Some $1) $2);
         exit 0;
 }
+| terms EOF {
+        type_check Context.empty $1;
+        let fl = open_out "test.wast" in
+        Printf.fprintf fl "%s" (create_code None $1);
+        exit 0; 
+} 
 
 
-terms:  terms COMMA term {
+terms:  terms SCOL term {
         (*        printf "Pretty print:    %s      \n"  (to_string $1) ; 
                 printf "\n %s \n" (pr_type (typeOf Context.empty $1));*)
         
-        Decs($1, $3)
+        Terms ($1, $3)
 
 } | term  {
         Term $1
@@ -101,8 +109,16 @@ term : IDENTIFIER  {
 | OP_BR term CL_BR {
         $2
 }
-| specifier IDENTIFIER EQ OP_BR term CL_BR {
-        Decl ($1, $2, $5)
+
+decl : specifier IDENTIFIER EQ OP_BR term CL_BR SCOL {
+        ($1, $2, $5)
+}
+
+global_decls : global_decls decl {
+        Decls ($1, $2)
+}
+| decl {
+        Decl $1 
 }
 
 %%

@@ -44,7 +44,7 @@
    | "Ref" { REF }
    | "|" { DEREF }
    | "=" { EQ }
-   | ';' { COMMA }
+   | ';' { SCOL }
    | ['0'-'9']+ as v { VAL v}
    | alph+(alph*digit*)* as name      { IDENTIFIER(name)      }
    | _  {printf "Found wrong token";ERROR}

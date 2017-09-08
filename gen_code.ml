@@ -10,13 +10,13 @@ let global_ctx = ref Global_Ctx.empty
 let func_index = ref Func_index.empty 
 
        
-let rec type_check ctx x = match x with
+let rec type_check ctx (x: terms): ty = match x with
         | Term t -> typeOf ctx t
-        | Decs (d, t) -> if sanity ctx d then typeOf ctx t else raise (Type_resolution_failed "Non-unit expression")  
+        | Terms (d, t) -> if sanity ctx d then typeOf ctx t else raise (Type_resolution_failed "Non-unit expression")  
 and sanity ctx = function 
         | Term t -> if typeOf ctx t == Unit then true else false
-        | Decs (d, t) -> if sanity ctx d then (typeOf ctx t = Unit) else false
-and typeOf ctx t :ty= match t with 
+        | Terms (d, t) -> if sanity ctx d then (typeOf ctx t = Unit) else false
+and typeOf ctx (t: term) :ty= match t with 
         | Var name -> if Global_Ctx.mem name !global_ctx then
                ( 
                 
@@ -43,16 +43,23 @@ and typeOf ctx t :ty= match t with
         | Assign (t1, t2) -> if (typeOf ctx t1) = Tref (typeOf ctx t2) then Unit else raise (Type_resolution_failed "Assign!")
         | Unit -> Unit 
         | Val _ -> I
+
+
+let rec type_check_decl (d: global_decls) ctx =
+        match d with
         | Decl (s, n, t) -> global_ctx := Global_Ctx.add n (typeOf ctx t) !global_ctx; Unit
+        | Decls (s, d) -> type_check_decl s ctx; type_check_decl (Decl d) ctx; Unit  
 
 let funcs_code = ref ""
 let init_global = ref ""
 let exports = ref "(export \"main\" (func $mm))\n" 
 
-
-let rec gen_webAsm d ctx clsr = match d with
+let rec gen_webAsm (d: terms) ctx clsr = match d with
         | Term t -> gen_webAsm_term t ctx clsr
-        | Decs (d1, t) -> let (f, new_clsr) = (gen_webAsm d1 ctx clsr) in let (s, n_clsr) = (gen_webAsm_term t ctx new_clsr) in (f^"\n\n" ^s, n_clsr) 
+        | Terms (d1, t) -> let (f, new_clsr) = (gen_webAsm d1 ctx clsr) in 
+                           let (s, n_clsr) = (gen_webAsm_term t ctx new_clsr) in 
+                           (f^"\n\n" ^s, n_clsr) 
+
 and gen_webAsm_term (t:term) ctx clsr = match t with
                            | Var x -> 
                                         if Global_Ctx.mem x !global_ctx then 
@@ -133,8 +140,11 @@ and gen_webAsm_term (t:term) ctx clsr = match t with
                                                                 )
                                                 | _ -> raise (Eval_error "LHS in assignment not a Ref!"))
                           | Unit -> ("", clsr)
-                          | Decl (sp, name, t) -> (if Context.cardinal ctx != 0 then raise (Eval_error "Non global decl!\n") else
-                                                  let (cd, new_clsr) = gen_webAsm_term (Abs (name, "dummy_x", I, Term t)) ctx clsr in
+                       
+
+let rec gen_webAsm_decls (d: global_decls) clsr =     
+        match d with
+        | Decl (sp, name, t) -> let (cd, new_clsr) = gen_webAsm_term (Abs (name, "dummy_x", I, Term t)) Context.empty clsr in
                                                   globals := !globals ^ "(global $"^name^" (mut i32) (i32.const 0))\n";
                                                   init_global := !init_global ^ cd ^ "(set_global $" ^ name ^ ")\n";
                                                   (
@@ -142,26 +152,30 @@ and gen_webAsm_term (t:term) ctx clsr = match t with
                                                           | Public -> exports := !exports ^ "(export \""^name^"\" (func $"^name^"))\n"
                                                           | Private -> exports := !exports ^ ""; 
                                                   );
-                                                  ("", new_clsr))
-                      
+                                                  ("", new_clsr)
+        | Decls (s, d) -> let (_, cl) = gen_webAsm_decls s clsr in gen_webAsm_decls (Decl d) cl 
                                                   
 
-let create_code t = let (cd, clsr) = (gen_webAsm t Context.empty 0) in
-                                       let tab_ins = ref "" in
-                                       for k=1 to clsr do
-                                               tab_ins := (!tab_ins)^
-                                               "(elem (i32.const "^string_of_int (k-1)^
-                                               ") $"^Func_index.find k !func_index^")\n"
-                                       done;
-                                       ("(module \n"^
-                                       "(type $GG (func (param i32) (param i32) (result i32)))\n"^
-                                        "(table " ^ string_of_int clsr ^ " anyfunc)\n"^(!tab_ins)^
-                                       "(memory $0 100)\n"^
-                                       "(global $dynamic_heap_ctr (mut i32) (i32.const 0))\n"^
-                                       "(global $_this (mut i32) (i32.const 0))\n"^
-                                       !globals^
-                                       "(export \"memory\" (memory $0))\n"^
-                                       !exports ^  
-                                       !funcs_code ^ "\n (func $mm (result i32)\n(local $this i32)\n"^
-                                       !init_global^"\n"^cd^"\n)\n)"
-                                       )  
+let create_code d (t: terms) = let (cd, cl) = (match d with
+                                               | Some d' -> gen_webAsm_decls d' 0
+                                               | None -> ("", 0)
+                                              ) in
+                                               let (cd, clsr) = (gen_webAsm t Context.empty cl) in
+                                               let tab_ins = ref "" in
+                                               for k=1 to clsr do
+                                                       tab_ins := (!tab_ins)^
+                                                       "(elem (i32.const "^string_of_int (k-1)^
+                                                       ") $"^Func_index.find k !func_index^")\n"
+                                               done;
+                                               ("(module \n"^
+                                               "(type $GG (func (param i32) (param i32) (result i32)))\n"^
+                                                "(table " ^ string_of_int clsr ^ " anyfunc)\n"^(!tab_ins)^
+                                               "(memory $0 100)\n"^
+                                               "(global $dynamic_heap_ctr (mut i32) (i32.const 0))\n"^
+                                               "(global $_this (mut i32) (i32.const 0))\n"^
+                                               !globals^
+                                               "(export \"memory\" (memory $0))\n"^
+                                               !exports ^  
+                                               !funcs_code ^ "\n (func $mm (result i32)\n(local $this i32)\n"^
+                                               !init_global^"\n"^cd^"\n)\n)"
+                                               )  

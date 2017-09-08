@@ -24,12 +24,16 @@ type term =
         | Assign of term*term
         | Unit
         | Val of int
-        | Decl of specifier*string*term
 
         and terms = 
         | Term of term
-        | Decs of terms*term
+        | Terms of terms*term
 
+type decl = specifier*string*term         
+
+type global_decls =
+        | Decl of decl 
+        | Decls of global_decls*decl
 
 let rec pr_type = function 
         | I -> "I"
@@ -40,17 +44,23 @@ let rec pr_type = function
 
 let rec term_to_string = function 
         | Var name -> name
-        | Abs (func_name, name, tp, b) -> "/" ^ name ^ ".(" ^ dec_to_string b ^ ")"
+        | Abs (func_name, name, tp, b) -> "/" ^ name ^ ".(" ^ terms_to_string b ^ ")"
         | App (t1, t2) -> term_to_string t1 ^ "( "^term_to_string t2^" )"
         | Ref t -> "Ref ("^term_to_string t^")"
         | Deref t -> "! ("^term_to_string t^")"
         | Assign (t1, t2) -> term_to_string t1^" := "^term_to_string t2
         | Unit -> "Unit"
         | Val x -> string_of_int x
-        | Decl (s, n, t) -> n ^ " = " ^ term_to_string t 
-        and dec_to_string = function
+        and terms_to_string = function
         | Term t -> term_to_string t
-        | Decs (d, t) -> (dec_to_string d)^"; "^(term_to_string t)
+        | Terms (d, t) -> (terms_to_string d)^"; "^(term_to_string t)
+
+
+let rec decl_to_string (d: global_decls) =  
+        match d with
+        | Decl (s, n, t) -> n ^ " = " ^ term_to_string t
+        | Decls (s, d) -> decl_to_string s ^ "\n" ^ decl_to_string (Decl d) 
+
         (* Exceptions *)
 exception Type_resolution_failed of string
 exception Application_failed of string
