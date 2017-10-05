@@ -9,6 +9,7 @@
 \newcommand{\eassign}[2]{#1 \mathrel{:=} #2}
 \newcommand{\ederef}[1]{\mathop{!} #1}
 \newcommand{\eapp}[2]{#1 \; #2}
+\newcommand{\elet}[4]{\syntax{let}\;#1 : #2 = #3 \mathrel{\syntax{in}} #4}
 
 \newcommand{\type}[1]{\ensuremath{\mathtt{#1}}}
 \newcommand{\tun}{\type{Un}}
@@ -50,6 +51,11 @@
   \inferrule{\Gamma(x) = \tau}{\Gamma \vdash x \infer \tau}
 
   \inferrule{\Gamma \vdash e \check \tau}{\Gamma \vdash e : \tau \infer \tau}
+
+  \inferrule{
+    \Gamma \vdash e_1 \check \tau_1 \\
+    \Gamma, x : \tau_1 \vdash e_2 \infer \tau_2
+  }{\Gamma \vdash \elet{x}{\tau_1}{e_1}{e_2} \infer \tau_2}
 \end{mathpar}
 
 \begin{mathpar}
