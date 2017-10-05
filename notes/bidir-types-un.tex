@@ -9,7 +9,7 @@
 \newcommand{\eassign}[2]{#1 \mathrel{:=} #2}
 \newcommand{\ederef}[1]{\mathop{!} #1}
 \newcommand{\eapp}[2]{#1 \; #2}
-\newcommand{\elet}[4]{\syntax{let}\;#1 : #2 = #3 \mathrel{\syntax{in}} #4}
+\newcommand{\elet}[3]{\syntax{let}\;#1 = #2 \mathrel{\syntax{in}} #3}
 
 \newcommand{\type}[1]{\ensuremath{\mathtt{#1}}}
 \newcommand{\tun}{\type{Un}}
@@ -51,11 +51,16 @@
   \inferrule{\Gamma(x) = \tau}{\Gamma \vdash x \infer \tau}
 
   \inferrule{\Gamma \vdash e \check \tau}{\Gamma \vdash e : \tau \infer \tau}
+\\\\
+  \inferrule{
+    \Gamma \vdash e_1 \infer \tau_1 \\
+    \Gamma, x : \tau_1 \vdash e_2 \infer \tau_2
+  }{\Gamma \vdash \elet{x}{e_1}{e_2} \infer \tau_2}
 
   \inferrule{
-    \Gamma \vdash e_1 \check \tau_1 \\
-    \Gamma, x : \tau_1 \vdash e_2 \infer \tau_2
-  }{\Gamma \vdash \elet{x}{\tau_1}{e_1}{e_2} \infer \tau_2}
+    \Gamma \vdash e_1 \infer \tau_1 \\
+    \Gamma, x : \tau_1 \vdash e_2 \check \tau_2
+  }{\Gamma \vdash \elet{x}{e_1}{e_2} \check \tau_2}
 \end{mathpar}
 
 \begin{mathpar}
@@ -82,7 +87,7 @@
   \inferrule
       {
         \Gamma \vdash e_1 \infer \tau_1 \to \tau_2 \\
-        \Gamma \vdash e_2 \infer \tau_1
+        \Gamma \vdash e_2 \check \tau_1
       }
       {
         \Gamma \vdash \eapp{e_1}{e_2} \infer \tau_2
@@ -93,7 +98,7 @@
    \inferrule
        {
          \Gamma \vdash e_1 \infer \tun \\
-         \Gamma \vdash e_2 \infer \tun
+         \Gamma \vdash e_2 \check \tun
        }
        {\Gamma \vdash \eapp{e_1}{e_2} \infer \tun}
 
