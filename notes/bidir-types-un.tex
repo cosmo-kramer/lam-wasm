@@ -50,6 +50,8 @@
 
   \inferrule{\Gamma(x) = \tau}{\Gamma \vdash x \infer \tau}
 
+  \inferrule{\Gamma \vdash e \infer \tau}{\Gamma \vdash e \check \tau}
+
   \inferrule{\Gamma \vdash e \check \tau}{\Gamma \vdash e : \tau \infer \tau}
 \\\\
   \inferrule{
