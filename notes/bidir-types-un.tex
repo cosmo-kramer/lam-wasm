@@ -98,7 +98,7 @@
    \inferrule
        {
          \Gamma \vdash e_1 \infer \tun \\
-         \Gamma \vdash e_2 \infer \tun
+         \Gamma \vdash e_2 \check \tun
        }
        {\Gamma \vdash \eapp{e_1}{e_2} \infer \tun}
 
@@ -117,13 +117,13 @@
      \\ \\
 
      \inferrule
-         {\Gamma \vdash e_1 \infer \eref{\tau} \\ \Gamma \vdash e_2 \infer \tau}
+         {\Gamma \vdash e_1 \infer \eref{\tau} \\ \Gamma \vdash e_2 \check \tau}
          {\Gamma \vdash \eassign{e_1}{e_2} \infer \tunit}
 
          &
 
      \inferrule
-         {\Gamma \vdash e_1 \infer \tun \\ \Gamma \vdash e_2 \infer \tun}
+         {\Gamma \vdash e_1 \infer \tun \\ \Gamma \vdash e_2 \check \tun}
          {\Gamma \vdash \eassign{e_1}{e_2} \infer \tun}
 
       \\ \\
