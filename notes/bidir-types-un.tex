@@ -73,9 +73,9 @@
     \hline
     \\
 
-  \inferrule{ }{\Gamma \vdash n \infer \tint}
+  \inferrule{ }{\Gamma \vdash n \check \tint}
   &
-  \inferrule{ }{\Gamma \vdash n \infer \tun}
+  \inferrule{ }{\Gamma \vdash n \check \tun}
   \\ \\
 
   \inferrule{\Gamma, x: \tau_1 \vdash e \check \tau_2}{\Gamma \vdash \lambda x.e \check \tau_1 \to \tau_2}
