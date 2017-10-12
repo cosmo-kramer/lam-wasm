@@ -54,9 +54,10 @@ and infer_exp (ctx : tyctx) (e : S.exp) : S.ty =
 		if Var.Map.mem x ctx then Var.Map.find x ctx
 		else raise (TyErr ("variable " ^ Var.to_string x))
 	| S.App (e1, e2) ->
-		(match infer_exp ctx e1 with
-		| S.Tfun (arg, res) -> check_exp ctx e2 arg; res
-		| _ -> raise (TyErr "application"))
+		let ty = infer_exp ctx e1 in
+		let t1, t2 = arrow_types ty in
+		check_exp ctx e2 t1;
+		t2
 	| S.Let (x, e1, e2) ->
 		let t1 = infer_exp ctx e1 in
 		let ctx = Var.Map.add x t1 ctx in
