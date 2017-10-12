@@ -2,10 +2,41 @@ open Utils
 open Map
 open Printf
 open Type_check
+
+(*
+	PDS: It would be somewhat cleaner if this stuff were collected into a
+
+		type state = {
+			funcs_code : string;	(* or string list with an eventual concatenation *)
+			init_global : string;
+			exports : string;
+		}
+
+	and the translation consumed a state (and produced a new
+	state). As things are written, you have to remember to clear
+	the references if you decide to translate two modules in one
+	run of the program.
+
+	All of these could accumulate string list, rather than string,
+	leaving the concatenation to the end. (You can concatenate n
+	characters in time O(n), but the way you do it is O(n^2).)
+*)
 let funcs_code = ref ""
 let init_global = ref ""
 let exports = ref "(export \"main\" (func $mm))\n" 
 
+(*
+	PDS: Sequential composition need not be part of the language.
+	In the call-by-value STLC we can encode let expressions:
+
+		let x = e1 in e2 := (λx. e2) e1
+
+	and then we can encode sequential composition:
+
+		e1; e2 := let x = e1 in e2	(* where x not free in e2; see ./toy_typechecker/var.mli:/fresh *)
+
+	The parser can handle e1; e2 without cluttering the language.
+*)
 let rec gen_webAsm (d: terms) ctx clsr = match d with
         | Term t -> gen_webAsm_term t ctx clsr
         | Terms (d1, t) -> let (f, new_clsr) = (gen_webAsm d1 ctx clsr) in 
@@ -14,7 +45,20 @@ let rec gen_webAsm (d: terms) ctx clsr = match d with
 
 and gen_webAsm_term (t:term) ctx clsr = match t with
                            | Var x -> 
-                                        if Global_Ctx.mem x !global_ctx then 
+                                        if Global_Ctx.mem x !global_ctx then
+(*
+	PDS: This appears to be dead code. I think I see what you're
+	doing here and I wonder if there is a cleaner way. Not all
+	source variables need correspond to target local variables. In
+	the source language, we have one class of variables (bound in
+	declarations, let expressions, and lambdas). The variables
+	bound in declarations compile to stuff outside any WA function
+	body. Rather than resort to yet more state, a cleaner way
+	might be to enrich our notion of variables with a bit (bound
+	by a declaration or not). I used a record in
+	toy_typechecker/var.ml:/var_info to support this sort of
+	compile-time distinction.
+*) 
                                                 (
                                                         ("(call_indirect $GG (i32.const 0) (get_global $"^x^") (i32.load (get_global $"^x^")))\n", clsr)
                                                 ) else  
@@ -28,6 +72,29 @@ and gen_webAsm_term (t:term) ctx clsr = match t with
                                                                             func_index := Func_index.add f_num f_name !func_index;
                                                                             let header = "(func $"^f_name^
                                                                              "(param $"^name^" i32) (param $cl_add i32) (result i32) \n(local $this i32)\n" in
+(*
+	PDS: It's a bit ugly to grow the heap N times rather than to
+	grow it once by 4N bytes. Also, consider calling a WA function
+	high_alloc : i32 -> i32 rather than inline its body. The
+	reason is you can then rewrite high_alloc (if you choose) to
+	dynamically grow the linear memory when it is full.
+
+	Also, what's the invariant on dynamic_heap_ctr?
+	It looks like you're doing the equivalent of
+		p += 4; mem[p] = closure
+	rather than
+		mem[p] = closure; p += 4
+	both here and your code for references. Even if your code is
+	correct, it is surprising and you should add a comment
+	explaining why it's not wrong (e.g., a top of file comment
+	describing run-time invariants and allocation).
+
+	Also also, you have not accounted for low integrity closures
+	(as far as I can tell). The way to do that is to first
+	allocate a high-integrity closure (like you're doing) and then
+	to use dynamic sealing. If that's unclear, ask Deepak or me to
+	explain.
+*)
                                                                 let new_clsr = clsr + 1 in
                                                                 let cl_init = ref ("(set_global $dynamic_heap_ctr (i32.add  "^
                                                                                    "(get_global $dynamic_heap_ctr) (i32.const 4)))\n"^
@@ -36,6 +103,14 @@ and gen_webAsm_term (t:term) ctx clsr = match t with
                                                                                   string_of_int (f_num-1)^")\n)\n") in 
                                                                
                                                                                 (* Store all values in ctx *) 
+(*
+	PDS: Closing over the entire context is a mistake. You should
+	implement a function FV to compute the variables occurring
+	free in an expression and then close over FV(func_body) \ DV
+	where DV is the set of variables bound by top-level
+	declarations. (The vars in DV are addressible at runtime
+	without help from closures.)
+*)
                                                                 Context.iter (fun k v ->
                                                                                    cl_init := (!cl_init)^
                                                                                    "(set_global $dynamic_heap_ctr (i32.add  "^
@@ -65,6 +140,10 @@ and gen_webAsm_term (t:term) ctx clsr = match t with
                                                                 )  
                            
                           | App (t1, t2) -> (match (typeOf ctx t1) with
+(*
+	PDS: Please implement left-to-right evaluation semantics,
+	rather than right-to-left.
+*)
                                             | F _ ->  let (code2, new_clsr) = gen_webAsm_term t2 ctx clsr in
                                                       let (code1, n_clsr) = gen_webAsm_term t1 ctx new_clsr in
          
@@ -81,6 +160,12 @@ and gen_webAsm_term (t:term) ctx clsr = match t with
                                      ^ "(get_global $dynamic_heap_ctr)\n", new_clsr)
 
                           | Unref t -> let res = "(set_global $dynamic_heap_ctr (i32.add (get_global $dynamic_heap_ctr) (i32.const 4)))\n"^
+(*
+	PDS: This is surprising! Alongside store_low, you should also
+	have imported a function alloc_low : i32 -> i32 for allocating
+	low memory. You don't want to allocate low reference cells
+	from the same memory as high reference cells.
+*)
                                                "(get_global $dynamic_heap_ctr)\n" in
                                        let (cd, new_clsr) = gen_webAsm_term t ctx clsr in
                                         (res ^ cd ^ "\n (call $store_low) \n" 
@@ -102,8 +187,19 @@ and gen_webAsm_term (t:term) ctx clsr = match t with
                                                                 )
                                                 | _ -> raise (Eval_error "LHS in assignment not a Ref!"))
                           | Unit -> ("", clsr)
+(*
+	PDS: You actually want to pass around a dummy value of type
+	i32 (0 will do) in the target language. This is the only way
+	to achieve a uniform closure representation.
+*)
                        
 
+
+
+(*
+	PDS: I will read the rest once you've updated to the treatment
+	of declarations sketched in ./toy_typechecker/.
+*)
 let rec gen_webAsm_decls (d: global_decls) clsr =     
         match d with
         | Decl (sp, name, t) -> let (cd, new_clsr) = gen_webAsm_term (Abs (name, "dummy_x", I, Term t)) Context.empty clsr in
