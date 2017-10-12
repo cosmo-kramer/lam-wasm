@@ -1,0 +1,148 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage{fullpage}
+\usepackage{mathpartir}
+\usepackage{amsmath,amssymb}
+
+\newcommand{\syntax}[1]{\ensuremath{\mathsf{#1}}}
+\newcommand{\eref}[1]{\syntax{ref}\;#1}
+\newcommand{\eassign}[2]{#1 \mathrel{:=} #2}
+\newcommand{\ederef}[1]{\mathop{!} #1}
+\newcommand{\eapp}[2]{#1 \; #2}
+\newcommand{\elet}[3]{\syntax{let}\;#1 = #2 \mathrel{\syntax{in}} #3}
+
+\newcommand{\type}[1]{\ensuremath{\mathtt{#1}}}
+\newcommand{\tun}{\type{Un}}
+\newcommand{\tbase}{\type{b}}
+\newcommand{\tbool}{\type{bool}}
+\newcommand{\tint}{\type{int}}
+\newcommand{\tunit}{\type{unit}}
+\newcommand{\tref}[1]{\type{ref}\;#1}
+
+\newcommand{\sep}{\;|\;}
+
+\renewcommand{\check}{\Leftarrow}
+\renewcommand{\infer}{\Rightarrow}
+
+\title{A simple, bidirectional type system with {\tun} types}
+\date{}
+
+\begin{document}
+\maketitle
+
+\[
+\begin{array}{llll}
+  \mbox{Base types} & \tbase & ::= & \tbool \sep \tint \sep \tunit \\
+%  
+  \mbox{Types} & \tau & ::= & \tbase \sep \tau_1 \to \tau_2 \sep \tref{\tau} \sep \tun  
+\end{array}
+\]
+
+\[
+\begin{array}{ll}
+  \Gamma \vdash e \infer \tau	&\text{inference} \\
+  \Gamma \vdash e \check \tau	&\text{checking}
+\end{array}
+\]
+
+\begin{mathpar}
+\hbox to \textwidth{\hfil Generally applicable rules\hfil}
+
+  \inferrule{\Gamma(x) = \tau}{\Gamma \vdash x \infer \tau}
+
+  \inferrule{\Gamma \vdash e \infer \tau}{\Gamma \vdash e \check \tau}
+
+  \inferrule{\Gamma \vdash e \check \tau}{\Gamma \vdash e : \tau \infer \tau}
+\\\\
+  \inferrule{
+    \Gamma \vdash e_1 \infer \tau_1 \\
+    \Gamma, x : \tau_1 \vdash e_2 \infer \tau_2
+  }{\Gamma \vdash \elet{x}{e_1}{e_2} \infer \tau_2}
+
+  \inferrule{
+    \Gamma \vdash e_1 \infer \tau_1 \\
+    \Gamma, x : \tau_1 \vdash e_2 \check \tau_2
+  }{\Gamma \vdash \elet{x}{e_1}{e_2} \check \tau_2}
+\end{mathpar}
+
+\begin{mathpar}
+  \begin{array}{c@{~~}|@{~~}c}
+    \hline \\
+    \mbox{Usual rule} & \mbox{{\tun} rule} \\
+    \\
+    \hline
+    \\
+
+  \inferrule{ }{\Gamma \vdash n \infer \tint}
+  &
+  \inferrule{ }{\Gamma \vdash n \infer \tun}
+  \\ \\
+
+  \inferrule{\Gamma, x: \tau_1 \vdash e \check \tau_2}{\Gamma \vdash \lambda x.e \check \tau_1 \to \tau_2}
+
+  &
+  
+  \inferrule{\Gamma, x: \tun \vdash e \check \tun}{\Gamma \vdash \lambda x.e \check \tun}
+
+  \\ \\
+
+  \inferrule
+      {
+        \Gamma \vdash e_1 \infer \tau_1 \to \tau_2 \\
+        \Gamma \vdash e_2 \check \tau_1
+      }
+      {
+        \Gamma \vdash \eapp{e_1}{e_2} \infer \tau_2
+      }
+      
+      &
+
+   \inferrule
+       {
+         \Gamma \vdash e_1 \infer \tun \\
+         \Gamma \vdash e_2 \check \tun
+       }
+       {\Gamma \vdash \eapp{e_1}{e_2} \infer \tun}
+
+    \\ \\
+
+    \inferrule
+        {\Gamma \vdash e \check \tau}
+        {\Gamma \vdash \eref{e} \check \tref{\tau}}
+
+        &
+
+    \inferrule
+        {\Gamma \vdash e \check \tun}
+        {\Gamma \vdash \eref{e} \check \tun}
+
+     \\ \\
+
+     \inferrule
+         {\Gamma \vdash e_1 \infer \eref{\tau} \\ \Gamma \vdash e_2 \check \tau}
+         {\Gamma \vdash \eassign{e_1}{e_2} \infer \tunit}
+
+         &
+
+     \inferrule
+         {\Gamma \vdash e_1 \infer \tun \\ \Gamma \vdash e_2 \check \tun}
+         {\Gamma \vdash \eassign{e_1}{e_2} \infer \tun}
+
+      \\ \\
+
+      \inferrule
+          {\Gamma \vdash e \infer \tref{\tau}}
+          {\Gamma \vdash \ederef{e} \infer \tau}
+
+          &
+
+      \inferrule
+          {\Gamma \vdash e \infer \tun}
+          {\Gamma \vdash \ederef{e} \infer \tun}
+
+      \\ \\
+
+          \hline
+  \end{array}
+\end{mathpar}
+\end{document}
