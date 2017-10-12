@@ -1,55 +1,7 @@
 open Utils
 open Map
 open Printf
-
-let func_num = ref 0
-let globals = ref ""
-let get_func_num () = (func_num := !func_num + 1; !func_num) 
-
-let global_ctx = ref Global_Ctx.empty
-let func_index = ref Func_index.empty 
-
-       
-let rec type_check ctx (x: terms): ty = match x with
-        | Term t -> typeOf ctx t
-        | Terms (d, t) -> if sanity ctx d then typeOf ctx t else raise (Type_resolution_failed "Non-unit expression")  
-and sanity ctx = function 
-        | Term t -> if typeOf ctx t == Unit then true else false
-        | Terms (d, t) -> if sanity ctx d then (typeOf ctx t = Unit) else false
-and typeOf ctx (t: term) :ty= match t with 
-        | Var name -> if Global_Ctx.mem name !global_ctx then
-               ( 
-                
-                       Global_Ctx.find name !global_ctx
-               )
-                        else  
-                        ( try 
-                Context.find name ctx
-                        with Not_found -> raise (Type_resolution_failed ("Var "^name^" not found!")))
-        | Abs (func_name, name, tp, b) -> let new_ctx = Context.add name tp ctx in 
-                                                F (tp, type_check new_ctx b)
-        | App (t1, t2) -> (match typeOf ctx t1 with
-                                | F (a, b) -> if (typeOf ctx t2) = a then b
-                                              else raise (Type_resolution_failed (
-                                                      "Arg type mismatch!"^pr_type (typeOf ctx t1)^" and  "^pr_type (typeOf ctx t2)
-                                                      )
-                                              )
-                                | _ -> raise (Type_resolution_failed "Exp not of func type!") 
-                           )
-        | Ref t1 -> Tref (typeOf ctx t1)
-        | Deref t1 -> (match typeOf ctx t1 with
-                     | Tref y -> y
-                     | _ -> raise (Type_resolution_failed "Can not deref a non ref value!"))
-        | Assign (t1, t2) -> if (typeOf ctx t1) = Tref (typeOf ctx t2) then Unit else raise (Type_resolution_failed "Assign!")
-        | Unit -> Unit 
-        | Val _ -> I
-
-
-let rec type_check_decl (d: global_decls) ctx =
-        match d with
-        | Decl (s, n, t) -> global_ctx := Global_Ctx.add n (typeOf ctx t) !global_ctx; Unit
-        | Decls (s, d) -> type_check_decl s ctx; type_check_decl (Decl d) ctx; Unit  
-
+open Type_check
 let funcs_code = ref ""
 let init_global = ref ""
 let exports = ref "(export \"main\" (func $mm))\n" 
@@ -128,8 +80,18 @@ and gen_webAsm_term (t:term) ctx clsr = match t with
                                      (res ^ cd ^ "\n (i32.store) \n" 
                                      ^ "(get_global $dynamic_heap_ctr)\n", new_clsr)
 
+                          | Unref t -> let res = "(set_global $dynamic_heap_ctr (i32.add (get_global $dynamic_heap_ctr) (i32.const 4)))\n"^
+                                               "(get_global $dynamic_heap_ctr)\n" in
+                                       let (cd, new_clsr) = gen_webAsm_term t ctx clsr in
+                                        (res ^ cd ^ "\n (call $store_low) \n" 
+                                        ^ "(get_global $dynamic_heap_ctr)\n", new_clsr)
+
                           | Deref t -> let (cd, new_clsr) = gen_webAsm_term t ctx clsr in
-                                       (cd ^ "\n(i32.load)\n", new_clsr)
+                                       (match typeOf ctx t with
+                                       | Tref _ -> (cd ^ "\n(i32.load)\n", new_clsr)
+                                       | Un _ -> (cd ^ "\n(call $load_low)\n", new_clsr)
+                                       | _ -> raise (Eval_error "Derefing non-ref term")
+                                       )
                           | Assign (t1, t2) -> (match typeOf ctx t1 with
                                                 | Tref ty1 -> if ty1 != typeOf ctx t2 
                                                               then (raise (Eval_error "assignment type mismatch")) 
@@ -168,14 +130,16 @@ let create_code d (t: terms) = let (cd, cl) = (match d with
                                                        ") $"^Func_index.find k !func_index^")\n"
                                                done;
                                                ("(module \n"^
-                                               "(type $GG (func (param i32) (param i32) (result i32)))\n"^
+                                                "(func $load_low (import \"low\" \"load\") (param i32) (result i32))\n"^
+                                                "(func $store_low (import \"low\" \"store\") (param i32) (param i32))\n"^     
+                                                "(type $GG (func (param i32) (param i32) (result i32)))\n"^
                                                 "(table " ^ string_of_int clsr ^ " anyfunc)\n"^(!tab_ins)^
-                                               "(memory $0 100)\n"^
-                                               "(global $dynamic_heap_ctr (mut i32) (i32.const 0))\n"^
-                                               "(global $_this (mut i32) (i32.const 0))\n"^
-                                               !globals^
-                                               "(export \"memory\" (memory $0))\n"^
-                                               !exports ^  
-                                               !funcs_code ^ "\n (func $mm (result i32)\n(local $this i32)\n"^
-                                               !init_global^"\n"^cd^"\n)\n)"
+                                                "(memory $0 100)\n"^
+                                                "(global $dynamic_heap_ctr (mut i32) (i32.const 0))\n"^
+                                                "(global $_this (mut i32) (i32.const 0))\n"^
+                                                !globals^
+                                                "(export \"memory\" (memory $0))\n"^
+                                                !exports ^  
+                                                !funcs_code ^ "\n (func $mm (result i32)\n(local $this i32)\n"^
+                                                !init_global^"\n"^cd^"\n)\n)"
                                                )  

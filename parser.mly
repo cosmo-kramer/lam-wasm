@@ -3,6 +3,7 @@ open Printf
 open Pervasives
 open Lexing
 open Utils
+open Type_check
 open Gen_code
 %}
 
@@ -22,7 +23,7 @@ open Gen_code
 %token PRIVATE
 %token PUBLIC
 %token EOF
-
+%token UNREF
 %token <string> VAL  
 %start program
 %type <specifier> specifier 
@@ -88,14 +89,17 @@ specifier : PRIVATE {
 term : IDENTIFIER  {
         Var $1        
 }
-| LAMBDA IDENTIFIER COL type_identifier DOT OP_BR terms CL_BR {
-        Abs ("", $2, $4, $7) 
+| LAMBDA IDENTIFIER COL type_identifier DOT terms {
+        Abs ("", $2, $4, $6) 
 } 
 | OP_BR term term CL_BR {
         App ($2, $3)
 }
 | REF term{
         Ref $2
+}
+| UNREF term{
+        Unref $2
 }
 | DEREF term{
         Deref $2

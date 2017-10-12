@@ -9,7 +9,13 @@ type ty =
         | I 
         | F of ty*ty
         | Tref of ty
+        | Un
         | Unit
+
+type direction =
+        | Synthesizes
+        | Checks
+
 
 type specifier = 
         | Private
@@ -19,7 +25,8 @@ type term =
         | Var of string  
         | Abs of string*string*ty*terms   (* name, type, body *)
         | App of term*term
-        | Ref of term 
+        | Ref of term
+        | Unref of term 
         | Deref of term
         | Assign of term*term
         | Unit
@@ -47,6 +54,7 @@ let rec term_to_string = function
         | Abs (func_name, name, tp, b) -> "/" ^ name ^ ".(" ^ terms_to_string b ^ ")"
         | App (t1, t2) -> term_to_string t1 ^ "( "^term_to_string t2^" )"
         | Ref t -> "Ref ("^term_to_string t^")"
+        | Unref t -> "Unref ("^ term_to_string t^")"
         | Deref t -> "! ("^term_to_string t^")"
         | Assign (t1, t2) -> term_to_string t1^" := "^term_to_string t2
         | Unit -> "Unit"
@@ -67,4 +75,7 @@ exception Application_failed of string
 exception Unbound_Var of string 
 exception Eval_error of string 
 
+let func_num = ref 0
+let globals = ref ""
+let get_func_num () = (func_num := !func_num + 1; !func_num) 
 

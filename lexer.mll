@@ -42,6 +42,7 @@
    | '.' { DOT }
    | "->" { ARROW }
    | "Ref" { REF }
+   | "Uref" { UNREF }
    | "|" { DEREF }
    | "=" { EQ }
    | ';' { SCOL }
