@@ -24,50 +24,35 @@ open Gen_code
 %token PUBLIC
 %token EOF
 %token UNREF
+%token Let
+%token IN
 %token <string> VAL  
 %start program
-%type <specifier> specifier 
 %type <unit> program
 %type <term> term
-%type <terms> terms
 %type <ty> type_identifier 
 %type <global_decls> global_decls
 %%
 
-program: global_decls terms EOF {
-        type_check_decl $1 Context.empty;
-        type_check Context.empty $2;
-        printf "%s" (terms_to_string $2);
+program: global_decls term EOF {
+        printf "%s" (term_to_string $2);
         
         let fl = open_out "test.wast" in
-        Printf.fprintf fl "%s" (create_code (Some $1) $2);
+        Printf.fprintf fl "%s" (create_code (Some $1) $2 empty_state);
         exit 0;
 }
-| terms EOF {
-        type_check Context.empty $1;
+| term EOF {
         let fl = open_out "test.wast" in
-        Printf.fprintf fl "%s" (create_code None $1);
+        Printf.fprintf fl "%s" (create_code None $1 empty_state);
         exit 0; 
 } 
 
 
-terms:  terms SCOL term {
-        (*        printf "Pretty print:    %s      \n"  (to_string $1) ; 
-                printf "\n %s \n" (pr_type (typeOf Context.empty $1));*)
-        
-        Terms ($1, $3)
-
-} | term  {
-        Term $1
-} | OP_BR terms CL_BR {
-        $2;
-}  
-
 type_identifier : type_identifier2 ARROW type_identifier2 {
-        F ($1, $3)
+        Tfun ($1, $3)
 }
 | IDENTIFIER {
-        I
+        Tint
 }
 | REF type_identifier{
         Tref $2
@@ -76,30 +61,20 @@ type_identifier2 : OP_BR type_identifier CL_BR {
        $2 
 }
 | IDENTIFIER {
-        I
-}
-
-specifier : PRIVATE {
-        Private
-}
-| PUBLIC {
-        Public
+        Tint
 }
 
 term : IDENTIFIER  {
         Var $1        
 }
-| LAMBDA IDENTIFIER COL type_identifier DOT terms {
-        Abs ("", $2, $4, $6) 
+| LAMBDA IDENTIFIER DOT term {
+        Abs ("", $2, $4) 
 } 
 | OP_BR term term CL_BR {
         App ($2, $3)
 }
 | REF term{
         Ref $2
-}
-| UNREF term{
-        Unref $2
 }
 | DEREF term{
         Deref $2
@@ -110,12 +85,15 @@ term : IDENTIFIER  {
 | VAL {
         Val (int_of_string $1)
 }
-| OP_BR term CL_BR {
+| Let IDENTIFIER EQ term IN term {
+        Let ($2, $4, $6)
+}
+| OP_BR term COL type_identifier CL_BR {
         $2
 }
 
-decl : specifier IDENTIFIER EQ OP_BR term CL_BR SCOL {
-        ($1, $2, $5)
+decl : IDENTIFIER EQ OP_BR term CL_BR SCOL {
+        ($1, $4)
 }
 
 global_decls : global_decls decl {

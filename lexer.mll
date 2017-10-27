@@ -33,9 +33,9 @@
    | space+       {identifier lexbuf}
    | new_line+         {Lexing.new_line lexbuf; identifier lexbuf }
    | eof        { EOF }
-   | "public" { PUBLIC }
-   | "private" { PRIVATE }  
    | lam { LAMBDA }
+   | "let" { Let }
+   | "in" { IN }
    | ':' { COL }
    | '(' { OP_BR }
    | ')' { CL_BR }
