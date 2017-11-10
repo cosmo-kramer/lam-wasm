@@ -124,30 +124,12 @@ let rec gen_webAsm (t:term) ctx clsr st = match t with
    (code1^"(set_global $_this)\n"^code2^"(get_global $_this\n)\n(get_global $_this)\n(i32.load)\n(call_indirect $GG)\n", new_clsr, st)
 
   | Val x -> ("(i32.const "^string_of_int x^")\n", clsr, st)
-  | Ref t ->  if infer_exp Context.empty t  == Tun then 
-                  let res = "(set_global $dynamic_heap_ctr (i32.add (get_global $dynamic_heap_ctr) (i32.const 4)))\n"^
-                       "(get_global $dynamic_heap_ctr)\n" in
-    let (cd, new_clsr, st) = gen_webAsm t ctx clsr st in
-    (res ^ cd ^ "\n (i32.store) \n" 
-     ^ "(get_global $dynamic_heap_ctr)\n", new_clsr, st)
-  else (
-          let res = "(set_global $dynamic_heap_ctr (i32.add (get_global $dynamic_heap_ctr) (i32.const 4)))\n"^
-                                        "(get_global $dynamic_heap_ctr)\n" in
-                                       let (cd, new_clsr, st) = gen_webAsm t ctx clsr st in
-                                        (res ^ cd ^ "\n (call $store_low) \n" 
-                                        ^ "(get_global $dynamic_heap_ctr)\n", new_clsr, st)
-  )
+  | Ref t ->  let (cd, new_clsr, st) = gen_webAsm t ctx clsr st in
+                  if infer_exp Context.empty t  == Tun then  
+                      (cd ^ "\n (call $store_high) \n", new_clsr, st) 
+              else 
+                      (cd ^ "\n (call $store_low) \n", new_clsr, st) 
 
-(*
-	Doubt: I have allocated a big chunk of memory whilie initializing memory. I am right now not checking if my $dynamic_heap_ctr goes beyond
-        that size. Should I implement that? So, if I understand your question correctly, there is no concept of allocating memory right now.
-
-
-        PDS: This is surprising! Alongside store_low, you should also
-	have imported a function alloc_low : i32 -> i32 for allocating
-	low memory. You don't want to allocate low reference cells
-	from the same memory as high reference cells.
-*)
  | Deref t -> let (cd, new_clsr, st) = gen_webAsm t ctx clsr st in
     (match infer_exp Context.empty t with  
      | Tref _ -> (cd ^ "\n(i32.load)\n", new_clsr, st)
@@ -161,21 +143,9 @@ let rec gen_webAsm (t:term) ctx clsr st = match t with
                         let (code2, new_clsr, st) = gen_webAsm t2 ctx clsr st in
                         (code1^"\n (set_global "^name^")\n"^code2, new_clsr, st)
   | Asc (e, t) -> gen_webAsm e ctx clsr st 
-  | Unit -> ("", clsr, st)
-(*
- *      Doubt: I do not understand this, can you ellaborate?
-	PDS: You actually want to pass around a dummy value of type
-	i32 (0 will do) in the target language. This is the only way
-	to achieve a uniform closure representation.
-*)
+  | Unit -> ("(i32.const 0)", clsr, st)
 
 
-
-
-(*
-	PDS: I will read the rest once you've updated to the treatment
-	of declarations sketched in ./toy_typechecker/.
-*)
 let rec gen_webAsm_decls (d: global_decls) clsr st =     
   match d with
   | Decl (name, t) -> let (cd, new_clsr, st) = gen_webAsm (Abs (name, "dummy_x", t)) BoundVars.empty clsr st in
