@@ -8,17 +8,6 @@
                    ; lexbuf
    )
 
-
-(*
-   type token = 
-           | IDENTIFIER of string
-           | EOF
-           | ERROR 
-           | AMBDA
-           | REF
-           | DEREF
-           | ASSIGN 
-*)        
      let line_num = ref 0
 
    exception Eof
@@ -41,8 +30,10 @@
    | ')' { CL_BR }
    | '.' { DOT }
    | "->" { ARROW }
+   | "Un" { Un }
    | "Ref" { REF }
    | "Uref" { UNREF }
+   | "," { COMMA }
    | "|" { DEREF }
    | "=" { EQ }
    | ';' { SCOL }
@@ -51,7 +42,7 @@
    | _  {printf "Found wrong token";ERROR}
 
    
-   {
+(*   {
    let main () = 
            
            try
@@ -62,7 +53,7 @@
            with Eof -> exit 0
    let () = main ()        
   }
-
+*)
 
 
 

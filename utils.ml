@@ -1,9 +1,12 @@
 open Map
+open List
 (* Context Initialization *)
 module Context = Map.Make(String)
 module Func_index = Map.Make(struct type t = int let compare : int -> int -> int = compare end)
-module Global_Ctx = Map.Make(String)
+module Global_ctx = Map.Make(String)
 module BoundVars = Set.Make(String)
+module Funcs_code = Map.Make(String)
+
 type ty = 
         | Tint 
         | Tfun of ty*ty
@@ -13,7 +16,7 @@ type ty =
 
 type term =
         | Var of string  
-        | Abs of string*string*term   (* func_name, name, body *)
+        | Abs of string*string*term   (* func_name (name of wasm func), name(arg name), body *)
         | App of term*term
         | Ref of term
         | Deref of term
@@ -22,6 +25,14 @@ type term =
         | Val of int
         | Let of string*term*term
         | Asc of term*ty
+
+type tcompUnit = 
+        | Lcomp of string*term*tcompUnit
+        | Lterm of string*term*term
+
+type texports = 
+        | All
+        | Exp of (string*ty) list
 
 type decl = string*term         
 
@@ -49,21 +60,18 @@ let rec term_to_string = function
         | Let (s, t1, t2) -> "let "^s^" "^(term_to_string t1)^" in "^(term_to_string t2)
         | Asc (e, t) -> (term_to_string e)^(" : ")^(pr_type t) 
 
-
+let rec compUnit_to_string = function
+        | Lcomp (name, t1, l1) -> "let "^name^" = "^(term_to_string t1)^" in \n"^compUnit_to_string l1
+        | Lterm (name, t1, t2) -> "let "^name^" = "^(term_to_string t1)^" in \n"^term_to_string t2
 let rec decl_to_string (d: global_decls) =  
         match d with
         | Decl (n, t) -> n ^ " = " ^ term_to_string t
         | Decls (s, d) -> decl_to_string s ^ "\n" ^ decl_to_string (Decl d) 
 
-
- 
-
-
 type state = {
-  funcs_code : string list;
+  funcs_code : (string list);
   init_global : string list;
-  exports : string list;
-  globals : string list;
+  globals : (ty Global_ctx.t);
 }
 
 
@@ -72,7 +80,9 @@ exception Type_resolution_failed of string
 exception Application_failed of string
 exception Unbound_Var of string 
 exception Eval_error of string 
-
+exception Export_error of string
 let func_num = ref 0
 let get_func_num () = (func_num := !func_num + 1; !func_num) 
-let empty_state = {funcs_code = []; init_global = []; exports = []; globals = []}
+let module_name = ref ""
+let func_index : (string Func_index.t ref) = ref Func_index.empty
+let empty_state = {funcs_code = []; init_global = []; globals = Global_ctx.empty;}

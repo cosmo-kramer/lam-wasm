@@ -7,6 +7,8 @@ all:
 	ocamllex lexer.mll
 	ocamlc -c lexer.ml
 	ocamlc -c parser.ml
-	ocamlc -o lam utils.cmo type_check.cmo gen_code.cmo parser.cmo lexer.cmo 
+	ocamlc -c linker.ml
+	ocamlc -c compile.ml
+	ocamlc -o lam utils.cmo type_check.cmo gen_code.cmo parser.cmo lexer.cmo linker.cmo compile.cmo
 clean:
 	rm lexer.ml *.cm* *.mli parser.ml

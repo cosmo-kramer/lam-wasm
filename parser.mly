@@ -8,7 +8,8 @@ open Gen_code
 %}
 
 %token <string> IDENTIFIER
-%token EOF 
+%token EOF
+%token COMMA 
 %token LAMBDA 
 %token REF
 %token DEREF
@@ -20,6 +21,7 @@ open Gen_code
 %token CL_BR
 %token ARROW
 %token SCOL 
+%token Un
 %token PRIVATE
 %token PUBLIC
 %token EOF
@@ -28,25 +30,43 @@ open Gen_code
 %token IN
 %token <string> VAL  
 %start program
-%type <unit> program
+%type <(string*Utils.state)> program
+%type <texports> exports
 %type <term> term
-%type <ty> type_identifier 
-%type <global_decls> global_decls
+%type <ty> type_identifier
+%type <tcompUnit> compUnit 
 %%
 
-program: global_decls term EOF {
-        printf "%s" (term_to_string $2);
-        
+program:  exports compUnit {
         let fl = open_out "test.wast" in
-        Printf.fprintf fl "%s" (create_code (Some $1) $2 empty_state);
-        exit 0;
-}
-| term EOF {
-        let fl = open_out "test.wast" in
-        Printf.fprintf fl "%s" (create_code None $1 empty_state);
-        exit 0; 
+        Printf.printf "\n%s\n" (compUnit_to_string $2);
+        compile_module $2 $1 
 } 
 
+exports : {
+        All
+}
+| OP_BR list_of_exp CL_BR {
+        Exp $2
+}
+
+list_of_exp : {
+        []
+}
+| IDENTIFIER COL type_identifier COMMA list_of_exp {
+        ($1, $3)::$5
+}
+| IDENTIFIER COL type_identifier {
+        [($1, $3)]
+}
+
+
+compUnit :  Let IDENTIFIER EQ term IN compUnit {
+        Lcomp ($2, $4, $6)
+}
+| Let IDENTIFIER EQ term IN term {
+        Lterm ($2, $4, $6)
+}
 
 type_identifier : type_identifier2 ARROW type_identifier2 {
         Tfun ($1, $3)
@@ -57,11 +77,18 @@ type_identifier : type_identifier2 ARROW type_identifier2 {
 | REF type_identifier{
         Tref $2
 }
+| Un {
+        Tun
+}
+
 type_identifier2 : OP_BR type_identifier CL_BR {
        $2 
 }
 | IDENTIFIER {
         Tint
+}
+| Un {
+        Tun
 }
 
 term : IDENTIFIER  {
@@ -85,22 +112,14 @@ term : IDENTIFIER  {
 | VAL {
         Val (int_of_string $1)
 }
-| Let IDENTIFIER EQ term IN term {
-        Let ($2, $4, $6)
+| term COL type_identifier {
+        Asc ($1, $3)
 }
-| OP_BR term COL type_identifier CL_BR {
+| OP_BR term CL_BR {
         $2
 }
-
-decl : IDENTIFIER EQ OP_BR term CL_BR SCOL {
-        ($1, $4)
-}
-
-global_decls : global_decls decl {
-        Decls ($1, $2)
-}
-| decl {
-        Decl $1 
+| Let IDENTIFIER EQ term IN term {
+        Let ($2, $4, $6)
 }
 
 %%
