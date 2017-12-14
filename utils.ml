@@ -2,7 +2,7 @@ open Map
 open List
 (* Context Initialization *)
 module Context = Map.Make(String)
-module Func_index = Map.Make(struct type t = int let compare : int -> int -> int = compare end)
+module Func_index = Map.Make(String)(*struct type t = int let compare : int -> int -> int = compare end)*)
 module Global_ctx = Map.Make(String)
 module BoundVars = Set.Make(String)
 module Funcs_code = Map.Make(String)
@@ -70,7 +70,6 @@ let rec decl_to_string (d: global_decls) =
 
 type state = {
   funcs_code : (string list);
-  init_global : string list;
   globals : (ty Global_ctx.t);
 }
 
@@ -83,6 +82,7 @@ exception Eval_error of string
 exception Export_error of string
 let func_num = ref 0
 let get_func_num () = (func_num := !func_num + 1; !func_num) 
+let low_integrity = ref 0
 let module_name = ref ""
-let func_index : (string Func_index.t ref) = ref Func_index.empty
-let empty_state = {funcs_code = []; init_global = []; globals = Global_ctx.empty;}
+let func_index : (int Func_index.t ref) = ref Func_index.empty
+let empty_state = {funcs_code = []; globals = Global_ctx.empty;}
