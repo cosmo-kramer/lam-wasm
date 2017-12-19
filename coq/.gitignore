@@ -1,0 +1,6 @@
+*.glob
+*.v.d
+*.vo
+Makefile.coq
+Makefile.coq.conf
+build-dep
