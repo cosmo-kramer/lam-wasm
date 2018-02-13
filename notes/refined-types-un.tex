@@ -1,0 +1,161 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage{fullpage}
+\usepackage{mathpartir}
+\usepackage{amsmath,amssymb}
+
+\newcommand{\syntax}[1]{\ensuremath{\mathsf{#1}}}
+\newcommand{\eref}[1]{\syntax{ref}\;#1}
+\newcommand{\eassign}[2]{#1 \mathrel{:=} #2}
+\newcommand{\ederef}[1]{\mathop{!} #1}
+\newcommand{\eapp}[2]{#1 \; #2}
+\newcommand{\eassert}[1]{\syntax{assert}(#1)}
+
+\newcommand{\type}[1]{\ensuremath{\mathtt{#1}}}
+\newcommand{\tun}{\type{Un}}
+\newcommand{\tbase}{\type{b}}
+\newcommand{\tbref}{\type{R}}
+\newcommand{\tbool}{\type{bool}}
+\newcommand{\tint}{\type{int}}
+\newcommand{\tunit}{\type{unit}}
+\newcommand{\tref}[2]{\type{ref}_{#2}\;#1}
+\newcommand{\peq}[2]{#1 = #2}
+\newcommand{\pun}[1]{\type{Un}(#1)}
+
+\newcommand{\subtype}{\sqsubseteq}
+\newcommand{\erase}[1]{|#1|}
+\newcommand{\sep}{\;|\;}
+
+\title{A simple type system with {\tun} types}
+\date{}
+
+\begin{document}
+\maketitle
+
+\[
+\begin{array}{llll}
+  %
+\mbox{Refinements} & \phi & ::= & \peq{e_1}{e_2} ~|~ \pun{e} ~|~ \ldots  \\
+  %
+  \mbox{Base types} & \tbase & ::= & \tbool \sep \tint \sep \tunit \\
+  %
+\mbox{Ref.\ base types} & R & ::= & \{x : \tbase ~|~ \phi\}\\
+  
+  \mbox{Types} & \tau & ::= & \tbref \sep \tau_1 \to \tau_2 \sep \tref{\tau}{x.\phi} \sep \tun  
+\end{array}
+\]
+
+Terms in refinements are limited to base types. This is important for
+soundness. The $\phi$ in the type $\tref{\tau}{x.\phi}$ is a
+refinement for the value stored in the reference. This refinement
+should be nontrivial only when $\tau$ is a base type.
+
+\framebox{Typing}
+\begin{mathpar}
+  \begin{array}{c@{~~}|@{~~}c}
+    \hline \\
+    \mbox{Usual rule} & \mbox{{\tun} rule} \\
+    \\
+    \hline
+    \\
+    
+  \inferrule{ }{\Gamma \vdash n: \{x:\tint ~|~ \peq{x}{n}\}}
+  &
+  \inferrule{ }{\Gamma \vdash n: \tun}
+  \\ \\
+
+  \inferrule{\Gamma, x: \tau_1 \vdash e: \tau_2}{\Gamma \vdash \lambda x.e: \tau_1 \to \tau_2}
+
+  &
+  
+  \inferrule{\Gamma, x: \tun \vdash e: \tun}{\Gamma \vdash \lambda x.e: \tun}
+
+  \\ \\
+
+  \inferrule
+      {
+        \Gamma \vdash e_1: \tau_1 \to \tau_2 \\
+        \Gamma \vdash e_2: \tau_1
+      }
+      {
+        \Gamma \vdash \eapp{e_1}{e_2}: \tau_2
+      }
+      
+      &
+
+   \inferrule
+       {
+         \Gamma \vdash e_1: \tun \\
+         \Gamma \vdash e_2: \tun
+       }
+       {\Gamma \vdash \eapp{e_1}{e_2}: \tun}
+
+    \\ \\
+
+    \inferrule
+        {\Gamma \vdash e: \{x:\tau ~|~ \phi\}}
+        {\Gamma \vdash \eref{e}: \tref{\tau}{x.\phi}}
+
+        &
+
+    \inferrule
+        {\Gamma \vdash e: \tun}
+        {\Gamma \vdash \eref{e}: \tun}
+
+     \\ \\
+
+     \inferrule
+         {\Gamma \vdash e_1: \tref{\tau}{x.\phi} \\ \Gamma \vdash e_2: \{x: \tau ~|~ \phi\}}
+         {\Gamma \vdash \eassign{e_1}{e_2}: \tunit}
+
+         &
+
+     \inferrule
+         {\Gamma \vdash e_1: \tun \\ \Gamma \vdash e_2: \tun}
+         {\Gamma \vdash \eassign{e_1}{e_2}: \tun}
+
+      \\ \\
+
+      \inferrule
+          {\Gamma \vdash e: \tref{\tau}{x.\phi}}
+          {\Gamma \vdash \ederef{e}: \{x:\tau~|~ \phi\}}
+
+          &
+
+      \inferrule
+          {\Gamma \vdash e: \tun}
+          {\Gamma \vdash \ederef{e}: \tun}
+
+          \\ \\
+
+      \inferrule
+          {\erase{\Gamma} \vdash \phi}
+          {\Gamma \vdash \eassert{\phi}: \{\_ : \tunit ~|~ \phi\}}
+          \\ \\
+
+          \hline
+  \end{array}
+\end{mathpar}
+
+The judgment $\Delta \vdash \phi$ is entailment in the refinement
+logic. The erasure function $\erase{\Gamma}$ is defined as follows.
+\[\begin{array}{lll}
+\erase{\bullet} & = & \bullet \\
+%
+\erase{\Gamma, x: \{y: \tbase ~|~ \phi\}} & = & \erase{\Gamma}, \phi[x/y] \\
+%
+\erase{\Gamma, x: \tau} & = & \erase{\Gamma} ~~~\mbox{when }\tau \not= \tbase
+\end{array}\]
+
+\framebox{Subtyping}
+\begin{mathpar}
+\inferrule{ }{\tun \subtype \{x: \tbase ~|~ \pun{x}\}} \and
+%
+\inferrule{ }{\{x: \tbase ~|~ \pun{x}\} \subtype \tun} \and
+%
+\inferrule{\erase{\Gamma} \vdash \forall x. \phi \Rightarrow \phi'}
+          {\Gamma \vdash \{x:\tau ~|~ \phi\} \subtype \{x:\tau ~|~ \phi'\}} \and
+          %
+\mbox{(Standard rules for subtyping are included)}          
+\end{mathpar}
+\end{document}
