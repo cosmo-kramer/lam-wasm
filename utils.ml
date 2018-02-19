@@ -7,12 +7,6 @@ module Global_ctx = Map.Make(String)
 module BoundVars = Set.Make(String)
 module Funcs_code = Map.Make(String)
 
-type ty = 
-        | Tint 
-        | Tfun of ty*ty
-        | Tref of ty
-        | Tun
-        | Tunit
 
 type term =
         | Var of string  
@@ -26,6 +20,22 @@ type term =
         | Let of string*term*term
         | Asc of term*ty
 
+and baseT = 
+        | Tint 
+        | Tunit
+
+        and refinement =
+        | Eq of term*term
+        | Un of term
+
+        and ty =
+        | R of term*baseT*refinement
+        | Tfun of ty*ty
+        | Tref of term*baseT*refinement
+        | Tun
+
+        
+(* Compilation units -> let string = t1 in compUnit *)
 type tcompUnit = 
         | Lcomp of string*term*tcompUnit
         | Lterm of string*term*term
@@ -40,15 +50,21 @@ type global_decls =
         | Decl of decl 
         | Decls of global_decls*decl
 
-let rec pr_type = function 
-        | Tint -> "I"
-        | Tfun (a, b) -> "("^pr_type a^") -> ("^pr_type b^")"
-        | Tref t -> "Ref "^pr_type t
+let rec pr_bType = function
+        | Tint -> "Int"
         | Tunit -> "Unit"
+
+
+let rec pr_phi = function 
+        | Eq (e1, e2) -> (term_to_string e1)^" = "^(term_to_string e2)  
+        | Un e -> "Un("^term_to_string e^")"
+        and pr_type t = match t with
+        | R (x, b, phi) -> "{ "^term_to_string x^" : "^pr_bType b^" | "^ pr_phi phi^" }"   
+        | Tfun (a, b) -> "("^pr_type a^") -> ("^pr_type b^")"
+        | Tref (x, t, phi) -> "Ref ("^term_to_string x^"."^pr_phi phi^")"^pr_bType t
         | Tun -> "Un"
 
-
-let rec term_to_string = function 
+and term_to_string = function 
         | Var name -> name
         | Abs (func_name, name, b) -> "/" ^ name ^ ".(" ^ term_to_string b ^ ")"
         | App (t1, t2) -> term_to_string t1 ^ "( "^term_to_string t2^" )"
@@ -59,6 +75,7 @@ let rec term_to_string = function
         | Val x -> string_of_int x
         | Let (s, t1, t2) -> "let "^s^" "^(term_to_string t1)^" in "^(term_to_string t2)
         | Asc (e, t) -> (term_to_string e)^(" : ")^(pr_type t) 
+
 
 let rec compUnit_to_string = function
         | Lcomp (name, t1, l1) -> "let "^name^" = "^(term_to_string t1)^" in \n"^compUnit_to_string l1
