@@ -29,14 +29,18 @@
    | '(' { OP_BR }
    | ')' { CL_BR }
    | '.' { DOT }
+   | '<' { LEQ }
    | "->" { ARROW }
    | "Un" { Un }
    | "Ref" { REF }
    | "Uref" { UNREF }
    | "," { COMMA }
    | "|" { DEREF }
-   | "=" { EQ }
+   | "=" {EQ }
+   | '_' {UNS}
    | ';' { SCOL }
+   | '{' { OP_BRACES }
+   | '}' { CL_BRACES }
    | ['0'-'9']+ as v { VAL v}
    | alph+(alph*digit*)* as name      { IDENTIFIER(name)      }
    | _  {printf "Found wrong token";ERROR}

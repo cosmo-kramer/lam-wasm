@@ -20,21 +20,33 @@ type term =
         | Let of string*term*term
         | Asc of term*ty
 
-and baseT = 
+        and refinement = 
+                | Eq of (term option)*(term option)   (*Nones will be filled by the term (x) *) 
+                | Leq of ((term option)*(term option))
+                | Un of term option 
+                | Tr 
+        and baseT = 
         | Tint 
         | Tunit
 
-        and refinement =
-        | Eq of term*term
-        | Un of term
-
         and ty =
-        | R of term*baseT*refinement
+        | R of baseT*refinement
         | Tfun of ty*ty
-        | Tref of term*baseT*refinement
+        | Tref of baseT*refinement
         | Tun
 
-        
+let apply phi t = match phi with
+| Eq (None, None) -> Eq (t, t)
+| Eq (None, x) -> Eq (t, x)
+| Eq (x, None) -> Eq (x, t)
+| Un None -> Un t
+| x -> x
+ 
+let erase ctx = Context.fold (fun k v l ->
+                                match v with
+                                | R (_, phi) -> (apply phi (Some (Var k)))::l
+                                | _ -> l
+                             ) ctx []
 (* Compilation units -> let string = t1 in compUnit *)
 type tcompUnit = 
         | Lcomp of string*term*tcompUnit
@@ -55,13 +67,11 @@ let rec pr_bType = function
         | Tunit -> "Unit"
 
 
-let rec pr_phi = function 
-        | Eq (e1, e2) -> (term_to_string e1)^" = "^(term_to_string e2)  
-        | Un e -> "Un("^term_to_string e^")"
+let rec pr_phi phi = "phi" 
         and pr_type t = match t with
-        | R (x, b, phi) -> "{ "^term_to_string x^" : "^pr_bType b^" | "^ pr_phi phi^" }"   
+        | R (b, phi) -> "{x: "^pr_bType b^" | "^ pr_phi phi^" }"   
         | Tfun (a, b) -> "("^pr_type a^") -> ("^pr_type b^")"
-        | Tref (x, t, phi) -> "Ref ("^term_to_string x^"."^pr_phi phi^")"^pr_bType t
+        | Tref (t, phi) -> "Ref (x."^pr_phi phi^")"^pr_bType t
         | Tun -> "Un"
 
 and term_to_string = function 

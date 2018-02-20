@@ -13,8 +13,12 @@ open Gen_code
 %token LAMBDA 
 %token REF
 %token DEREF
+%token CL_BRACES
+%token OP_BRACES
+%token LEQ
 %token EQ
 %token ERROR
+%token UNS
 %token COL
 %token DOT
 %token OP_BR
@@ -28,9 +32,13 @@ open Gen_code
 %token UNREF
 %token Let
 %token IN
+%token X
 %token <string> VAL  
 %start program
+%type <refinement> phi
 %type <(string*Utils.state)> program
+%type <baseT> BaseT
+%type <term option> termphi
 %type <texports> exports
 %type <term> term
 %type <ty> type_identifier
@@ -38,9 +46,7 @@ open Gen_code
 %%
 
 program:  exports compUnit {
-        let fl = open_out "test.wast" in
-        Printf.printf "\n%s\n" (compUnit_to_string $2);
-        compile_module $2 $1 
+        compile_module $2 $1
 } 
 
 exports : {
@@ -68,24 +74,46 @@ compUnit :  Let IDENTIFIER EQ term IN compUnit {
         Lterm ($2, $4, $6)
 }
 
+BaseT : IDENTIFIER {
+        Tint
+}
+
+termphi : term {
+        Some $1
+}
+| UNS {
+        None
+}
+
+phi : termphi EQ termphi {
+        Eq ($1, $3)
+}
+| Un OP_BR termphi CL_BR {
+        Un $3
+} 
+| termphi LEQ termphi {
+        Leq ($1, $3)
+}
+
 type_identifier : type_identifier2 ARROW type_identifier2 {
         Tfun ($1, $3)
 }
-| IDENTIFIER {
-        Tint
+| OP_BRACES BaseT DEREF phi CL_BRACES {
+        R ($2, $4)
 }
-| REF type_identifier{
-        Tref $2
+| REF OP_BRACES BaseT DEREF phi CL_BRACES {
+        Tref ($3, $5)
 }
 | Un {
         Tun
 }
 
+
 type_identifier2 : OP_BR type_identifier CL_BR {
        $2 
 }
-| IDENTIFIER {
-        Tint
+| OP_BRACES BaseT DEREF phi CL_BRACES {
+      R ($2, $4)
 }
 | Un {
         Tun

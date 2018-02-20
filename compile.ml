@@ -22,6 +22,7 @@ let read_to_list fname = let inp = open_in fname in
 let () = let modules = ref [] in
          for i = 1 to Array.length Sys.argv - 1 do
                 let code = String.concat ""  (List.rev (read_to_list Sys.argv.(i))) in
+                Printf.printf "%s\n\n" code;
                 module_name := Sys.argv.(i);
                 modules := (parse_from_string code)::!modules;
           done; 

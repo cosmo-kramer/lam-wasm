@@ -7,24 +7,27 @@ let global_ctx: ((ty Global_ctx.t) ref) = ref Global_ctx.empty
 
 *)
 
-(* Takes a refinement whose free variable (x) has been bound by the appropriate term *)
-let check_ref phi = ()
+let check_ref erased phi1 phi2 = true
 
 let int_type (ty : S.ty) (t: term): unit =
 	match ty with
-        | S.R (x, Tint, (Eq (_, (Val n))))  -> check_ref (Eq (x, Val n)); 
-                                        (match t with
-                                        | Val n -> ()
+        | S.R (Tint, phi)  ->      (match (t, phi) with
+                                        | (Val n, Eq (None, Some (Val i))) | (Val n, Eq (Some (Val i), None))  -> if i = n then () else raise (TyErr "int_type pred mismatch(i!=n)!")
                                         | _ -> raise (TyErr "int_type pred mismatch!"))
         | S.Tun -> ()
 	| _ -> raise (TyErr "expected int or Un")
 
-let unit_type (ty : S.ty) : unit =
+let closed = function
+        | Eq (Some _, Some _) | Leq (Some _, Some _) | Un (Some _) | Tr -> true
+        | _ -> false
+(*
+let unit_type (ty : S.ty) ctx : unit =
 	match ty with
-	| S.R (x, Tunit, phi) -> check_ref phi
-        | S.Tun -> ()
+	| S.R (Tunit, phi) -> if closed phi && check_ref (erase ctx) Tr phi then () (* Tunit expects a closed phi, Val 1 is dummy *)
+                                else raise (TyErr "expected unit or Un")
+        | S.Tun -> ()           
 	| _ -> raise (TyErr "expected unit or Un")
-
+*)
 let arrow_types (ty : S.ty) : S.ty * S.ty =
 	match ty with
 	| S.Tfun (t1, t2) -> t1, t2
@@ -33,14 +36,21 @@ let arrow_types (ty : S.ty) : S.ty * S.ty =
 
 let contents_type (ty : S.ty) : S.ty =
 	match ty with
-	| S.Tref (x, t, phi) -> S.R (x, t, phi)
+	| S.Tref (x, phi) -> S.R (x, phi)
 	| S.Tun -> S.Tun
 	| _ -> raise (TyErr "expected reference or Un")
 
+
+let rec subtype t2 ty ctx : bool = match (t2, ty) with
+        | (Tun, R (_, Un None)) -> true
+        | (R (_, Un None), Tun) -> true
+        | (R (t1, phi1), (R (t2, phi2))) -> (t1=t2) && check_ref (erase ctx) phi1 phi2     
+        | _ -> false 
+
+
 let rec check_exp (ctx : (S.ty Context.t)) (e : S.term) (ty : S.ty) : unit =
 	match e with
-	| S.Val _ -> int_type ty e
-	| S.Unit -> unit_type ty
+	| S.Val _ -> int_type ty e 
 	| S.Abs (_, x, e) ->
 		let t1, t2 = arrow_types ty in
 		let ctx = Context.add x t1 ctx in
@@ -52,7 +62,7 @@ let rec check_exp (ctx : (S.ty Context.t)) (e : S.term) (ty : S.ty) : unit =
 	| S.Ref e -> check_exp ctx e (contents_type ty)
 	| _ ->
 		let t2 = infer_exp ctx e in
-		if ty = t2 then ()
+		if subtype t2 ty ctx then ()                (* subtype t2 ty -> t2 is subtype of ty *)
 		else raise (TyErr "subsumption")
 
 and infer_contents_type ctx (e : S.term) : S.ty =
@@ -78,9 +88,9 @@ and infer_exp ctx (e : S.term) : S.ty =
 	| S.Assign (e1, e2) ->
 		let t2 = infer_contents_type ctx e1 in
 		check_exp ctx e2 t2;
-		S.Tunit
+		(S.R (S.Tunit, Tr)) 
 	| S.Asc (e, ty) -> check_exp ctx e ty; ty
-        | _ -> raise (TyErr ("type ascription required  "^S.term_to_string e)); Tunit 
+        | _ -> raise (TyErr ("type ascription required  "^S.term_to_string e)); Tun 
 
        (*
 let check_dec (ctx : Context.t) (dec : S.dec) : Context.t =

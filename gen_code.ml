@@ -73,6 +73,7 @@ let rec gen_webAsm_term (t:term) ctx bv st = match t with
                         let bv = BoundVars.add name bv in 
                         let st = { st with globals = Global_ctx.add name (infer_exp ctx t1) st.globals } in 
                         let ctx = Context.add name (infer_exp ctx t1) ctx in
+                        infer_exp ctx t2;
                         let (code2, st) = gen_webAsm_term t2 ctx bv st in
                         (code1^"\n (set_global $"^name^")\n"^code2, st)
   | Asc (e, t) -> gen_webAsm_term e ctx bv st 
@@ -80,17 +81,22 @@ let rec gen_webAsm_term (t:term) ctx bv st = match t with
 
 
 let rec gen_webAsm (t: tcompUnit) ctx st = match t with
-  | Lcomp (name, t1, t2) -> let st = { st with globals = Global_ctx.add name (infer_exp ctx t1) st.globals } in 
+  | Lcomp (name, t1, t2) -> let ty = infer_exp ctx t1 in
+                            let ctx = Context.add name ty ctx in
+                            let st = { st with globals = Global_ctx.add name ty st.globals } in 
                             let (cd1, st) = gen_webAsm_term (match t1 with 
                             | Abs (fn, _, body) -> Abs (fn, name, body) 
                             | _ -> t1) ctx BoundVars.empty st in
                             let (cd2, st) = gen_webAsm t2 ctx st in
                             (cd1^"\n (set_global $"^name^")\n"^cd2, st)
 
-  | Lterm (name, t1, t2) -> let st = { st with globals = Global_ctx.add name (infer_exp ctx t1) st.globals } in 
+  | Lterm (name, t1, t2) -> let ty = infer_exp ctx t1 in
+                            let st = { st with globals = Global_ctx.add name ty st.globals } in 
+                            let ctx = Context.add name ty ctx in
                             let (cd1, st) = gen_webAsm_term (match t1 with 
                             | Abs (fn, _, body) -> Abs (fn, name, body) 
                             | _ -> t1) ctx BoundVars.empty st in
+                            infer_exp ctx t2;
                             let (cd2, st) = gen_webAsm_term t2 ctx BoundVars.empty st in
                             (cd1^"\n (set_global $"^name^")\n"^cd2, st)
 
