@@ -45,7 +45,8 @@ let rec gen_webAsm_term (t:term) ctx bv st = match t with
                                                            "(set_local $"^k^")\n")
                                                      ) fv; 
                                                    let (bd, st') = gen_webAsm_term func_body ctx bv st in 
-                                                (*   Printf.printf "++  %s  ++" (List.hd st'.funcs_code);  *)
+                                                   let st' = { st' with funcs_code = ("\n"^header^"\n"^(!cl_init)^bd^")\n")::st'.funcs_code} in
+                                                     Printf.printf "++  %s  ++" (List.hd st'.funcs_code);  
                                                    (!cl_init ^ "\n(get_local $this)", st')
   | App (t1, t2) -> let (code1, st) = gen_webAsm_term t1 ctx bv st in
                     let (code2, st) = gen_webAsm_term t2 ctx bv st in

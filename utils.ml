@@ -41,7 +41,8 @@ let apply phi t = match phi with
 | Eq (x, None) -> Eq (x, t)
 | Un None -> Un t
 | x -> x
- 
+(* updat inside Leq *)
+
 let erase ctx = Context.fold (fun k v l ->
                                 match v with
                                 | R (_, phi) -> (apply phi (Some (Var k)))::l
@@ -50,7 +51,7 @@ let erase ctx = Context.fold (fun k v l ->
 (* Compilation units -> let string = t1 in compUnit *)
 type tcompUnit = 
         | Lcomp of string*term*tcompUnit
-        | Lterm of string*term*term
+        | Lterm of term
 
 type texports = 
         | All

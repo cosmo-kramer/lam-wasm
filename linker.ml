@@ -28,7 +28,7 @@ let rec link (modules: (string*state) list) =
    "(type $GG (func (param i32) (param i32) (result i32)))\n"^
    "(table " ^ string_of_int !func_num ^ " anyfunc)\n"^(!tab_ins)^
    "(memory $0 100)\n"^
-   "(global $dynamic_heap_ctr (mut i32) (i32.const "^string_of_int !low_integrity^")\n"^
+   "(global $dynamic_heap_ctr (mut i32) (i32.const "^string_of_int !low_integrity^"))\n"^
    "(global $_this (mut i32) (i32.const 0))\n"^
    "(func $store_high (param $0 i32)
            
@@ -48,7 +48,7 @@ let rec link (modules: (string*state) list) =
    )"^
       !globals_init^
 "(export \"memory\" (memory $0))\n(export (func $start))\n"^
-   !module_funcs_appended^ "\n (func $start (result i32)\n(local $this i32)\n"^
+   !module_funcs_appended^ "\n (func \"mm\" $start (result i32)\n(local $this i32)\n"^
    !start_func^"\n)\n)"
 )
 
