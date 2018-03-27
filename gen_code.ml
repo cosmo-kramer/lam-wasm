@@ -13,7 +13,9 @@ let rec gen_webAsm_term (t:term) ctx bv st = match t with
                                                                 "(param $"^name^" i32) (param $cl_add i32) (result i32) \n(local $this i32)\n" in
                                                    
                                                    let bv = BoundVars.add name bv in
+                                                   Printf.printf ")))))))))))))))))))))))))))))))))))\n\n";
                                                    let isUn = try if infer_exp ctx t = Tun then true else false with TyErr _ -> false in
+                                                   Printf.printf "(((((((((((((((((((((((((((((((((\n\n";
                                                    let tab_index = if isUn then f_num-1 else !low_integrity in
                                                    (* Initialize the low_integrity table located at beginnig of high memory (static section) *)
                                                    let cl_init = if isUn then 
@@ -55,6 +57,9 @@ let rec gen_webAsm_term (t:term) ctx bv st = match t with
                     (code1^"(set_global $_this)\n"^code2^"(get_global $_this\n)\n"^(!get_tab_index)^"\n(call_indirect $GG)\n", st)
 
   | Val x -> ("(i32.const "^string_of_int x^")\n", st)
+  | Plus (e1, e2) -> let (cd1, st) = gen_webAsm_term e1 ctx bv st in
+                     let (cd2, st) = gen_webAsm_term e2 ctx bv st in
+                     ("(i32.add ("^cd1^")  ("^cd2^"))\n", st)  
   | Ref t ->  let (cd, st) = gen_webAsm_term t ctx bv st in
                   if infer_exp ctx t  == Tun then  
                       (cd ^ "\n (call $store_high) \n", st) 
@@ -65,7 +70,7 @@ let rec gen_webAsm_term (t:term) ctx bv st = match t with
     (match infer_exp ctx t with  
      | Tref _ -> (cd ^ "\n(i32.load)\n", st)
      | Tun _ -> (cd ^ "\n(call $load_low)\n", st)
-     | _ -> raise (Eval_error "Derefing non-ref term")
+     | _ -> raise (Error "Derefing non-ref term")
     )
   | Assign (t1, t2) -> let (code1, st) = gen_webAsm_term t1 ctx bv st in
            let (code2, st) = gen_webAsm_term t2 ctx bv st in
@@ -78,7 +83,8 @@ let rec gen_webAsm_term (t:term) ctx bv st = match t with
                         let (code2, st) = gen_webAsm_term t2 ctx bv st in
                         (code1^"\n (set_global $"^name^")\n"^code2, st)
   | Asc (e, t) -> gen_webAsm_term e ctx bv st 
-  | Unit -> ("(i32.const 0)", st)
+  | Fix f -> gen_webAsm_term (App (f, (Fix f))) ctx bv st
+  | _ -> ("(i32.const 0)", st)
 
 
 let rec gen_webAsm (t: tcompUnit) ctx st = match t with
@@ -91,15 +97,9 @@ let rec gen_webAsm (t: tcompUnit) ctx st = match t with
                             let (cd2, st) = gen_webAsm t2 ctx st in
                             (cd1^"\n (set_global $"^name^")\n"^cd2, st)
 
-  | Lterm (name, t1, t2) -> let ty = infer_exp ctx t1 in
-                            let st = { st with globals = Global_ctx.add name ty st.globals } in 
-                            let ctx = Context.add name ty ctx in
-                            let (cd1, st) = gen_webAsm_term (match t1 with 
-                            | Abs (fn, _, body) -> Abs (fn, name, body) 
-                            | _ -> t1) ctx BoundVars.empty st in
-                            infer_exp ctx t2;
+  | Lterm t2 -> infer_exp ctx t2;
                             let (cd2, st) = gen_webAsm_term t2 ctx BoundVars.empty st in
-                            (cd1^"\n (set_global $"^name^")\n"^cd2, st)
+                            (cd2, st)
 
 let rec check_export_types l gl = match l with
 | [] -> ()

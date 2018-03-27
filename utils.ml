@@ -6,7 +6,15 @@ module Func_index = Map.Make(String)(*struct type t = int let compare : int -> i
 module Global_ctx = Map.Make(String)
 module BoundVars = Set.Make(String)
 module Funcs_code = Map.Make(String)
+module Base_types = Map.Make(String)
 
+
+        (* Exceptions *)
+exception Type_resolution_failed of string
+exception Application_failed of string
+exception Unbound_Var of string 
+exception Error of string 
+exception Export_error of string
 
 type term =
         | Var of string  
@@ -17,35 +25,52 @@ type term =
         | Assign of term*term
         | Unit
         | Val of int
+        | Plus of term*term
         | Let of string*term*term
         | Asc of term*ty
-
+        | Fix of term 
+        | Constructor of string*(term list)
         and refinement = 
-                | Eq of (term option)*(term option)   (*Nones will be filled by the term (x) *) 
-                | Leq of ((term option)*(term option))
-                | Un of term option 
+                | Eq of term*term   (*Nones will be filled by the term (x) *) 
+                | Leq of term*term
+                | Un of term
                 | Tr 
         and baseT = 
-        | Tint 
-        | Tunit
-
+        | Base of string*((string*(ty list)) list)
+      (*  | Dummy of string  Having this dummy type helps in parsing recursive base types, this has no rules for type checking so any type where this doesn't get erased to a Base constructor will fail type checking *)
         and ty =
-        | R of baseT*refinement
+              (* x    baseT    phi  *)  
+        | R of string*string*refinement
+        | Rty of string*ty*refinement
         | Tfun of ty*ty
-        | Tref of baseT*refinement
+        | Tref of string*string*refinement
         | Tun
 
-let apply phi t = match phi with
-| Eq (None, None) -> Eq (t, t)
-| Eq (None, x) -> Eq (t, x)
-| Eq (x, None) -> Eq (x, t)
-| Un None -> Un t
-| x -> x
-(* updat inside Leq *)
+let isPure = function 
+        | Ref _ | Deref _ | Assign _ -> raise (Error "Impure phi!")
+        | _ -> ()
+
+let rec subst x t t1 = match t1 with
+| Val n -> Val n
+| Var x -> t
+| Abs (s, n, bd) -> Abs (s, n, (subst x t bd))
+| App (t1, t2) -> App (subst x t t1, subst x t t2)
+| Plus (t1, t2) -> Plus (subst x t t1, subst x t t2)
+| Unit -> Unit
+| Let (x, t1, t2) -> Let (x, subst x t t1, subst x t t2)
+| Asc (t1, tyy) -> Asc (subst x t t1, tyy)
+| Fix f -> Fix (subst x t f)
+| Constructor (s, l) -> Constructor (s, map (subst x t) l)
+| _ -> raise (Error "Impure phi!"); Unit
+
+let apply phi x t = match phi with
+| Eq (t1, t2) -> Eq (subst x t t1, subst x t t2)
+| Leq (t1, t2) -> Leq (subst x t t1, subst x t t2)
+| x -> x  
 
 let erase ctx = Context.fold (fun k v l ->
                                 match v with
-                                | R (_, phi) -> (apply phi (Some (Var k)))::l
+                                | R (x, _, phi) -> (apply phi x (Var k))::l
                                 | _ -> l
                              ) ctx []
 (* Compilation units -> let string = t1 in compUnit *)
@@ -63,22 +88,25 @@ type global_decls =
         | Decl of decl 
         | Decls of global_decls*decl
 
-let rec pr_bType = function
-        | Tint -> "Int"
-        | Tunit -> "Unit"
-
-
-let rec pr_phi phi = "phi" 
+let rec pr_bType b = "b_type" 
+let rec pr_phi = function
+        | Eq (t1, t2) -> (term_to_string t1)^"  ==  "^(term_to_string t2)
+        | Leq (t1, t2) -> (term_to_string t1)^"  ==  "^(term_to_string t2)
+        | Un t -> (term_to_string t)
+        | Tr -> "True"
+ 
         and pr_type t = match t with
-        | R (b, phi) -> "{x: "^pr_bType b^" | "^ pr_phi phi^" }"   
+        | R (x, b, phi)  ->  "{"^x^": "^pr_bType b^" | "^ pr_phi phi^" }"   
+        | Rty (x, b, phi)-> "{"^x^": "^pr_bType b^" | "^ pr_phi phi^" }"   
         | Tfun (a, b) -> "("^pr_type a^") -> ("^pr_type b^")"
-        | Tref (t, phi) -> "Ref (x."^pr_phi phi^")"^pr_bType t
+        | Tref (x, t, phi) -> "Ref ("^x^"."^pr_phi phi^")"^pr_bType t
         | Tun -> "Un"
 
 and term_to_string = function 
         | Var name -> name
         | Abs (func_name, name, b) -> "/" ^ name ^ ".(" ^ term_to_string b ^ ")"
         | App (t1, t2) -> term_to_string t1 ^ "( "^term_to_string t2^" )"
+        | Plus (t1, t2) -> term_to_string t1 ^ "- "^term_to_string t2
         | Ref t -> "Ref ("^term_to_string t^")"
         | Deref t -> "! ("^term_to_string t^")"
         | Assign (t1, t2) -> term_to_string t1^" := "^term_to_string t2
@@ -86,11 +114,11 @@ and term_to_string = function
         | Val x -> string_of_int x
         | Let (s, t1, t2) -> "let "^s^" "^(term_to_string t1)^" in "^(term_to_string t2)
         | Asc (e, t) -> (term_to_string e)^(" : ")^(pr_type t) 
-
-
+        | Fix f -> "fix ("^(term_to_string f)^")"
+        | Constructor (s, l) -> "Constructor "^s^" .. terms .. "
 let rec compUnit_to_string = function
         | Lcomp (name, t1, l1) -> "let "^name^" = "^(term_to_string t1)^" in \n"^compUnit_to_string l1
-        | Lterm (name, t1, t2) -> "let "^name^" = "^(term_to_string t1)^" in \n"^term_to_string t2
+        | Lterm t2 -> term_to_string t2
 let rec decl_to_string (d: global_decls) =  
         match d with
         | Decl (n, t) -> n ^ " = " ^ term_to_string t
@@ -101,16 +129,27 @@ type state = {
   globals : (ty Global_ctx.t);
 }
 
+(* Base types  string*((string*(baseT list)) list)   *)
 
-        (* Exceptions *)
-exception Type_resolution_failed of string
-exception Application_failed of string
-exception Unbound_Var of string 
-exception Eval_error of string 
-exception Export_error of string
+let intB = Base ("int", [])
+let unitB = Base ("unit", [])
+let intT = R ("__NONE__", "int", Tr)
+let unitT = R ("__NONE__", "unit", Tr)
+
+
+let base_types = ref Base_types.empty
+
+let add_base_type bT: unit = let Base (x, _) = bT in (base_types := Base_types.add x bT !base_types)
+
+let dummy = (add_base_type intB); add_base_type unitB 
+
 let func_num = ref 0
 let get_func_num () = (func_num := !func_num + 1; !func_num) 
 let low_integrity = ref 0
 let module_name = ref ""
 let func_index : (int Func_index.t ref) = ref Func_index.empty
+let find_opt x l = try
+                        Some (List.find x l)
+                   with Not_found -> None
+
 let empty_state = {funcs_code = []; globals = Global_ctx.empty;}

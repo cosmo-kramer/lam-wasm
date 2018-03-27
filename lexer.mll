@@ -17,6 +17,7 @@
    let new_line = ['\n']
    let digit = ['0'-'9']
    let alph = ['a'-'z']
+   let cap = ['A'-'Z']
    let lam = ['?'] 
    rule identifier = parse
    | space+       {identifier lexbuf}
@@ -34,7 +35,9 @@
    | "Un" { Un }
    | "Ref" { REF }
    | "Uref" { UNREF }
+   | "True" { True }
    | "," { COMMA }
+   | "+" { PLUS }
    | "|" { DEREF }
    | "=" {EQ }
    | '_' {UNS}
@@ -42,6 +45,7 @@
    | '{' { OP_BRACES }
    | '}' { CL_BRACES }
    | ['0'-'9']+ as v { VAL v}
+   | cap+(alph*digit*cap*)*  as name { Cons(name)  }
    | alph+(alph*digit*)* as name      { IDENTIFIER(name)      }
    | _  {printf "Found wrong token";ERROR}
 
