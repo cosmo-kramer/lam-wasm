@@ -1,5 +1,6 @@
 open Map
 open Utils
+open Why3_interface
 (*open Why3*)
 module S = Utils
 exception TyErr of string
@@ -51,7 +52,7 @@ and infer_contents_type ctx (e : S.term) : S.ty =
 
 and infer_exp ctx (e : S.term) : S.ty =
 	match e with
-        | S.Val n -> let x = Context.fold (fun a b c -> a^c) ctx "__" in  Rty (x, intT, Eq (Var x, Val n)) 
+        | S.Val n -> let x = Context.fold (fun a b c -> a^c) ctx "__" in  R (x, "int", Eq (Var x, Val n)) 
         | S.Var name ->   
                 ( try 
                 Context.find name ctx
@@ -72,21 +73,14 @@ and infer_exp ctx (e : S.term) : S.ty =
 		(S.Rty ("__NONE__", S.unitT, Tr)) 
 	| S.Asc (e, ty) -> check_exp ctx e ty; ty
         | S.Constructor (s, l) ->
-                                        let pred = ( fun bT -> let Base (_, cs) = bT in 
-                                                               find_opt (fun x -> let (nm, _) = x in nm == s) cs ) in
-                                        let ty = ref "__NONE__" in
-                                        let tList = ref [] in
-                                        (Base_types.iter (fun k v ->
-                                                        if pred v != None then 
-                                                                let Some (nm, ll) = pred v in 
-                                                                ty := k;tList := ll else ()
-                                                  ) !base_types);
-                                        let tL = List.combine l !tList in
-                                        List.iter (fun x ->
-                                                let (t, ty) = x in
-                                                check_exp ctx t ty;
-                                                ) tL;
-                                        if !ty == "__NONE__" then (raise (TyErr "Invalid  cons!")) else S.R ("__NONE__", !ty, Tr)  
+                        let (ty, tL) = get_type s l in
+                        List.iter (fun x ->
+                                let (t, ty) = x in
+                                Printf.printf "%s    %s\n\n" (term_to_string t) (pr_type ty);
+                                check_exp ctx t ty;
+                                ) tL;
+
+                        if ty == "__NONE__" then (raise (TyErr "Invalid  cons!")) else S.R ("__NONE__", ty, Tr)  
                                                                      
         | _ -> raise (TyErr ("type ascription required  "^S.term_to_string e)); Tun 
 and 
@@ -120,25 +114,28 @@ and check_ref ctx (erased: refinement list) (ref1: string*refinement) (ref2: str
         let erased = List.map (reduce ctx) erased in
         let phi1 = sub erased (reduce ctx phi1) in
         let phi2 = sub erased (reduce ctx phi2) in
-        match phi2 with
-        | Eq (Abs (n1, x1, b1), Abs (n2, x2, b2)) -> check_ref ctx erased ref1 (x1, (Eq (b1, subst x2 (Var x1) b2)))
-        | Eq (Var x, Val n) ->   ()
-        | Eq (Plus (t1, t2), Val n) ->  () 
-        | _-> "Refinement check failed! (type_check.ml 53)"; ()
+        let fml1 = generate_why3_formula erased ref1 in
+        let fml2 = (match phi2 with
+        | Eq (Abs (n1, x1, b1), Abs (n2, x2, b2)) -> check_ref ctx erased ref1 (x1, (Eq (b1, subst x2 (Var x1) b2))); why3_true
+        | Eq (Var x, Val n) ->  forall_close (y, phi2)
+        | Eq (Plus (t1, t2), Val n) ->  forall_close (y, phi2)
+        | _-> "Refinement check failed! (type_check.ml 53)"; why3_true
+        ) in
+        check_alt_ergo fml1 fml2
          
 and subtype t2 ty ctx : bool = match (t2, ty) with
         | (Tun, R (x, _, Un (Var y))) -> y = x
         | (R (x, _, Un (Var y)), Tun) -> x = y
         | (R (x, t1, phi1), (R (y, t2, phi2))) -> Base_types.mem t1 !base_types && Base_types.mem t2 !base_types && (t1=t2) && (check_ref ctx (erase ctx) (x, phi1) (y, phi2); true)    
-        | _ -> true 
+        | _ -> Printf.printf "subsumption wildcard case!\n"; false
 
 and sub erased phi = match erased with
 | [] -> phi
 | h::t -> match h with
-        | Eq (t1, t2) -> match (t1, t2) with 
+        | Eq (t1, t2) -> (match (t1, t2) with 
                          | (Var x, Var y) -> sub t (substInRefinement y (Var x) phi)
                          | (Var x, e) -> sub t (substInRefinement x e phi)
-                         | _ -> sub t phi
+                         | _ -> sub t phi)
         | _ -> Printf.printf "Ignoring!\n"; sub t phi
                                  
  

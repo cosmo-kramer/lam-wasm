@@ -177,8 +177,8 @@ term : IDENTIFIER  {
 | Let IDENTIFIER EQ term IN term {
         Let ($2, $4, $6)
 }
-| Cons OP_BR para_list CL_BR {
-        Constructor ($1, $3)
+| Cons para_list  {
+        Constructor ($1, $2)
 }
 
 para_list : term COMMA para_list {

@@ -13,9 +13,7 @@ let rec gen_webAsm_term (t:term) ctx bv st = match t with
                                                                 "(param $"^name^" i32) (param $cl_add i32) (result i32) \n(local $this i32)\n" in
                                                    
                                                    let bv = BoundVars.add name bv in
-                                                   Printf.printf ")))))))))))))))))))))))))))))))))))\n\n";
                                                    let isUn = try if infer_exp ctx t = Tun then true else false with TyErr _ -> false in
-                                                   Printf.printf "(((((((((((((((((((((((((((((((((\n\n";
                                                    let tab_index = if isUn then f_num-1 else !low_integrity in
                                                    (* Initialize the low_integrity table located at beginnig of high memory (static section) *)
                                                    let cl_init = if isUn then 
@@ -84,8 +82,17 @@ let rec gen_webAsm_term (t:term) ctx bv st = match t with
                         (code1^"\n (set_global $"^name^")\n"^code2, st)
   | Asc (e, t) -> gen_webAsm_term e ctx bv st 
   | Fix f -> gen_webAsm_term (App (f, (Fix f))) ctx bv st
-  | _ -> ("(i32.const 0)", st)
+  | Constructor (nm, l) -> let intConstructor = int_of_constructor nm in
+                           let (cd, st) = compile_cons_list l ctx bv st in
+                           ("(i64.add (i64.shl (i32.const "^string_of_int intConstructor^") (i32.const 32)) "^cd^")\n", st)                      
+  | Unit -> ("(i32.const 0)", st)
 
+
+and compile_cons_list l ctx bv st = match l with
+| [] -> ("(i32.const 0)", st)
+| h::t -> let (cd1, st1) = gen_webAsm_term (Ref h) ctx bv st in
+          let (cd2, st2) = compile_cons_list t ctx bv st1 in
+          ("(i64.add (i64.shl (i32.const "^cd1^" (i32.const 32)) "^cd2^")", st2)
 
 let rec gen_webAsm (t: tcompUnit) ctx st = match t with
   | Lcomp (name, t1, t2) -> let ty = infer_exp ctx t1 in

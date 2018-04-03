@@ -63,10 +63,11 @@ let rec subst x t t1 = match t1 with
 | Constructor (s, l) -> Constructor (s, map (subst x t) l)
 | _ -> raise (Error "Impure phi!"); Unit
 
-let apply phi x t = match phi with
+let rec apply phi x t = match phi with
 | Eq (t1, t2) -> Eq (subst x t t1, subst x t t2)
 | Leq (t1, t2) -> Leq (subst x t t1, subst x t t2)
-| x -> x  
+| Un t1 -> Un (subst x t t1)
+| Tr -> Tr
 
 let erase ctx = Context.fold (fun k v l ->
                                 match v with
@@ -153,3 +154,20 @@ let find_opt x l = try
                    with Not_found -> None
 
 let empty_state = {funcs_code = []; globals = Global_ctx.empty;}
+let int_of_constructor (s: string) :int = let res = ref 0 in 
+                                          String.iter (fun c -> res := (!res)*50+(int_of_char c - int_of_char 'a')) s;
+                                          !res
+
+let get_type s l = 
+                  let pred = ( fun bT -> let Base (_, cs) = bT in 
+                  let ll = ref None in
+                  (List.iter (fun x -> let (nm, l') = x in if nm = s then (Printf.printf "%s  %s\n" nm s; ll := Some l') else ()) cs); !ll) in
+                  let ty = ref "__NONE__" in
+                  let tList = ref [] in
+                  (Base_types.iter (fun k v ->
+                          if pred v != None then 
+                                          let Some ll = pred v in 
+                                          ty := k;tList := ll else ()
+                            ) !base_types);
+                            let tL = List.combine l !tList in
+                            (!ty, tL)
