@@ -11,6 +11,7 @@ open Gen_code
 %token <string> Cons
 %token EOF
 %token COMMA 
+%token Unit
 %token LAMBDA 
 %token REF
 %token DEREF
@@ -125,9 +126,12 @@ type_identifier : type_identifier2 ARROW type_identifier2 {
 | OP_BRACES IDENTIFIER COL type_identifier DEREF phi CL_BRACES {
         Rty ($2, $4, $6)
 }
-
-| REF OP_BRACES IDENTIFIER COL BaseT DEREF phi CL_BRACES {
-        Tref ($3, $5, $7)
+| OP_BR type_identifier COMMA type_identifier CL_BR
+{
+        Tpair ($2, $4)
+}
+| REF type_identifier{
+        Tref $2
 }
 | Un {
         Tun
@@ -180,7 +184,12 @@ term : IDENTIFIER  {
 | Cons para_list  {
         Constructor ($1, $2)
 }
-
+| OP_BR term COMMA term CL_BR {
+        Pair ($2, $4)
+}
+| Unit {
+        Unit
+}
 para_list : term COMMA para_list {
         $1::$3
 }

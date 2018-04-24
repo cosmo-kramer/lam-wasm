@@ -36,6 +36,7 @@
    | "Ref" { REF }
    | "Uref" { UNREF }
    | "True" { True }
+   | "Unit" { Unit }
    | "," { COMMA }
    | "+" { PLUS }
    | "|" { DEREF }

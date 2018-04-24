@@ -30,6 +30,7 @@ type term =
         | Asc of term*ty
         | Fix of term 
         | Constructor of string*(term list)
+        | Pair of term*term
         and refinement = 
                 | Eq of term*term   (*Nones will be filled by the term (x) *) 
                 | Leq of term*term
@@ -43,7 +44,8 @@ type term =
         | R of string*string*refinement
         | Rty of string*ty*refinement
         | Tfun of ty*ty
-        | Tref of string*string*refinement
+        | Tref of ty
+        | Tpair of ty*ty
         | Tun
 
 let isPure = function 
@@ -52,7 +54,7 @@ let isPure = function
 
 let rec subst x t t1 = match t1 with
 | Val n -> Val n
-| Var x -> t
+| Var y -> if y = x then t else t1
 | Abs (s, n, bd) -> Abs (s, n, (subst x t bd))
 | App (t1, t2) -> App (subst x t t1, subst x t t2)
 | Plus (t1, t2) -> Plus (subst x t t1, subst x t t2)
@@ -61,6 +63,7 @@ let rec subst x t t1 = match t1 with
 | Asc (t1, tyy) -> Asc (subst x t t1, tyy)
 | Fix f -> Fix (subst x t f)
 | Constructor (s, l) -> Constructor (s, map (subst x t) l)
+| Pair (t1, t2) -> Pair (subst x t t1, subst x t t2)
 | _ -> raise (Error "Impure phi!"); Unit
 
 let rec apply phi x t = match phi with
@@ -92,21 +95,23 @@ type global_decls =
 let rec pr_bType b = "b_type" 
 let rec pr_phi = function
         | Eq (t1, t2) -> (term_to_string t1)^"  ==  "^(term_to_string t2)
-        | Leq (t1, t2) -> (term_to_string t1)^"  ==  "^(term_to_string t2)
-        | Un t -> (term_to_string t)
+        | Leq (t1, t2) -> (term_to_string t1)^"  <=  "^(term_to_string t2)
+        | Un t -> "Un ("^(term_to_string t)^")"
         | Tr -> "True"
  
         and pr_type t = match t with
         | R (x, b, phi)  ->  "{"^x^": "^pr_bType b^" | "^ pr_phi phi^" }"   
         | Rty (x, b, phi)-> "{"^x^": "^pr_bType b^" | "^ pr_phi phi^" }"   
         | Tfun (a, b) -> "("^pr_type a^") -> ("^pr_type b^")"
-        | Tref (x, t, phi) -> "Ref ("^x^"."^pr_phi phi^")"^pr_bType t
+        | Tref ty -> "Ref ("^pr_type ty^")"
+        | Tpair (t1, t2) -> "("^pr_type t1^" * "^pr_type t2^")"
         | Tun -> "Un"
 
 and term_to_string = function 
         | Var name -> name
         | Abs (func_name, name, b) -> "/" ^ name ^ ".(" ^ term_to_string b ^ ")"
         | App (t1, t2) -> term_to_string t1 ^ "( "^term_to_string t2^" )"
+        | Pair (t1, t2) -> "("^term_to_string t1 ^ "," ^ term_to_string t2^")"
         | Plus (t1, t2) -> term_to_string t1 ^ "- "^term_to_string t2
         | Ref t -> "Ref ("^term_to_string t^")"
         | Deref t -> "! ("^term_to_string t^")"
@@ -161,7 +166,7 @@ let int_of_constructor (s: string) :int = let res = ref 0 in
 let get_type s l = 
                   let pred = ( fun bT -> let Base (_, cs) = bT in 
                   let ll = ref None in
-                  (List.iter (fun x -> let (nm, l') = x in if nm = s then (Printf.printf "%s  %s\n" nm s; ll := Some l') else ()) cs); !ll) in
+                  (List.iter (fun x -> let (nm, l') = x in if nm = s then (ll := Some l') else ()) cs); !ll) in
                   let ty = ref "__NONE__" in
                   let tList = ref [] in
                   (Base_types.iter (fun k v ->

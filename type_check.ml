@@ -18,26 +18,20 @@ let arrow_types (ty : S.ty) : S.ty * S.ty =
 
 let contents_type (ty : S.ty) : S.ty =
 	match ty with
-	| S.Tref (x, b, phi) -> S.R (x, b, phi)
+	| S.Tref ty -> ty
 	| S.Tun -> S.Tun
 	| _ -> raise (TyErr "expected reference or Un")
 
 
-let rec check_exp (ctx : (S.ty Context.t)) (e : S.term) (ty : S.ty) : unit =
-	match e with
-        | S.Plus (e1, e2) -> check_exp ctx e1 intT; check_exp ctx e2 intT;  
-                             (match ty with
-                              | S.R (x, intT, phi) -> check_ref ctx (erase ctx) ("__NONE__", Tr) (x, phi)
-                              | _ -> raise (TyErr "Type check failed in addition!"); ()
-                                ) 
-
+let rec check_exp (ctx : (S.ty Context.t)) (e : S.term) (ty : S.ty) : unit =  
+        match e with
         | S.Abs (_, x, e) ->
-		let t1, t2 = arrow_types ty in
-		let ctx = Context.add x t1 ctx in
-		check_exp ctx e t2
-	| S.Let (x, e1, e2) ->
-		let t1 = infer_exp ctx e1 in
-		let ctx = Context.add x t1 ctx in
+	let t1, t2 = arrow_types ty in
+	let ctx = Context.add x t1 ctx in
+	check_exp ctx e t2
+        | S.Let (x, e1, e2) -> 
+                        let t1 = infer_exp ctx e1 in 
+                        let ctx = Context.add x t1 ctx in
 		check_exp ctx e2 ty
 	| S.Ref e -> check_exp ctx e (contents_type ty)
         | S.Fix f -> check_exp ctx f (S.Tfun (ty, ty));                        
@@ -50,20 +44,23 @@ and infer_contents_type ctx (e : S.term) : S.ty =
 	let ty = infer_exp ctx e in
 	contents_type ty
 
-and infer_exp ctx (e : S.term) : S.ty =
+and infer_exp ctx (e : S.term) : S.ty = 
 	match e with
-        | S.Val n -> let x = Context.fold (fun a b c -> a^c) ctx "__" in  R (x, "int", Eq (Var x, Val n)) 
+        | S.Unit -> unitT
+        | S.Val n -> let x = Context.fold (fun a b c -> a^c) ctx "qwerty" in  R (x, "int", Eq (Var x, Val n)) 
         | S.Var name ->   
                 ( try 
                 Context.find name ctx
                 with Not_found -> raise (TyErr ("Var "^name^" not found!")))
-	| S.App (e1, e2) ->
-		let ty = infer_exp ctx e1 in
-		let t1, t2 = arrow_types ty in
-		check_exp ctx e2 t1;
-		t2
-	| S.Let (x, e1, e2) ->
-		let t1 = infer_exp ctx e1 in
+	| S.Plus (e1, e2) -> check_exp ctx e1 intT; check_exp ctx e2 intT;  
+                             let x = Context.fold (fun a b c -> a^c) ctx "qwerty" in  R (x, "int", Eq (Var x, Plus (e1, e2))) 
+        | S.App (e1, e2) ->
+	let ty = infer_exp ctx e1 in
+	let t1, t2 = arrow_types ty in
+	check_exp ctx e2 t1;
+	t2
+        | S.Let (x, e1, e2) -> 
+                        let t1 = infer_exp ctx e1 in 
 		let ctx = Context.add x t1 ctx in
 		infer_exp ctx e2
 	| S.Deref e -> infer_contents_type ctx e
@@ -72,11 +69,11 @@ and infer_exp ctx (e : S.term) : S.ty =
 		check_exp ctx e2 t2;
 		(S.Rty ("__NONE__", S.unitT, Tr)) 
 	| S.Asc (e, ty) -> check_exp ctx e ty; ty
+        | S.Pair (t1, t2) -> Tpair (infer_exp ctx t1, infer_exp ctx t2)
         | S.Constructor (s, l) ->
                         let (ty, tL) = get_type s l in
                         List.iter (fun x ->
                                 let (t, ty) = x in
-                                Printf.printf "%s    %s\n\n" (term_to_string t) (pr_type ty);
                                 check_exp ctx t ty;
                                 ) tL;
 
@@ -111,30 +108,32 @@ and substInRefinement x t phi = match phi with
 and check_ref ctx (erased: refinement list) (ref1: string*refinement) (ref2: string*refinement) = 
         let (x, phi1) = ref1 in 
         let (y, phi2) = ref2 in
+        let phi2 = apply phi2 y (Var x) in
         let erased = List.map (reduce ctx) erased in
         let phi1 = sub erased (reduce ctx phi1) in
         let phi2 = sub erased (reduce ctx phi2) in
-        let fml1 = generate_why3_formula erased ref1 in
-        let fml2 = (match phi2 with
+
+        let fml = (match phi2 with
         | Eq (Abs (n1, x1, b1), Abs (n2, x2, b2)) -> check_ref ctx erased ref1 (x1, (Eq (b1, subst x2 (Var x1) b2))); why3_true
-        | Eq (Var x, Val n) ->  forall_close (y, phi2)
-        | Eq (Plus (t1, t2), Val n) ->  forall_close (y, phi2)
+        | Eq (_, _)| Leq (_, _) ->  forall_close x phi1 phi2
         | _-> "Refinement check failed! (type_check.ml 53)"; why3_true
         ) in
-        check_alt_ergo fml1 fml2
+        check_alt_ergo fml 
          
-and subtype t2 ty ctx : bool = match (t2, ty) with
+and subtype t2 ty ctx : bool = Printf.printf "%s <>  %s\n\n"  (pr_type t2) (pr_type ty);match (t2, ty) with
         | (Tun, R (x, _, Un (Var y))) -> y = x
         | (R (x, _, Un (Var y)), Tun) -> x = y
         | (R (x, t1, phi1), (R (y, t2, phi2))) -> Base_types.mem t1 !base_types && Base_types.mem t2 !base_types && (t1=t2) && (check_ref ctx (erase ctx) (x, phi1) (y, phi2); true)    
-        | _ -> Printf.printf "subsumption wildcard case!\n"; false
+        | (Rty (x, t1, phi1), (Rty (y, t2, phi2))) -> subtype t1 t2 ctx && (check_ref ctx (erase ctx) (x, phi1) (y, phi2); true) 
+        | (Tref t1, Tref t2) -> subtype t1 t2 ctx         
+        | _ -> if t2 = ty then true else (Printf.printf "subsumption wildcard case!\n"; false)
 
 and sub erased phi = match erased with
 | [] -> phi
 | h::t -> match h with
         | Eq (t1, t2) -> (match (t1, t2) with 
                          | (Var x, Var y) -> sub t (substInRefinement y (Var x) phi)
-                         | (Var x, e) -> sub t (substInRefinement x e phi)
+                         | (Var x, e) ->  sub t (substInRefinement x e phi)
                          | _ -> sub t phi)
         | _ -> Printf.printf "Ignoring!\n"; sub t phi
                                  
@@ -164,6 +163,7 @@ let rec get_fv (t: S.term) bv st = match t with
 | Var name -> if (BoundVars.mem name bv || Global_ctx.mem name st.globals) then [] else name::[]
 | Abs (_, nm, b) -> get_fv b (BoundVars.add nm bv) st 
 | App (t1, t2) -> List.concat [(get_fv t1 bv st); (get_fv t2 bv st)]
+| Pair (t1, t2) -> List.concat [(get_fv t1 bv st); (get_fv t2 bv st)]
 | Plus (t1, t2) -> List.concat [(get_fv t1 bv st); (get_fv t2 bv st)]
 | Ref t -> get_fv t bv st
 | Deref t -> get_fv t bv st
@@ -172,5 +172,5 @@ let rec get_fv (t: S.term) bv st = match t with
 | Val x -> []
 | Let (s, t1, t2) -> List.concat [(get_fv t1 bv st); (get_fv t2 (BoundVars.add s bv) st)] 
 | Asc (e, t) -> get_fv e bv st
-
+| Constructor (_, l) -> List.flatten (List.map (fun x -> get_fv x bv st) l) 
 
