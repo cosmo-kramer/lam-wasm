@@ -9,6 +9,10 @@
 \newcommand{\eassign}[2]{#1 \mathrel{:=} #2}
 \newcommand{\ederef}[1]{\mathop{!} #1}
 \newcommand{\eapp}[2]{#1 \; #2}
+\newcommand{\elet}[3]{\syntax{let}\;#1 = #2 \mathrel{\syntax{in}} #3}
+
+
+\newcommand{\syntax}[1]{\ensuremath{\mathsf{#1}}}
 \newcommand{\eassert}[1]{\syntax{assert}(#1)}
 
 \newcommand{\type}[1]{\ensuremath{\mathtt{#1}}}
@@ -26,7 +30,10 @@
 \newcommand{\erase}[1]{|#1|}
 \newcommand{\sep}{\;|\;}
 
-\title{A simple type system with {\tun} types}
+\renewcommand{\check}{\Leftarrow}
+\renewcommand{\infer}{\Rightarrow}
+
+\title{Bidirectional type system with {\tun} and Refinement types}
 \date{}
 
 \begin{document}
@@ -34,7 +41,7 @@
 
 \[
 \begin{array}{llll}
-  %
+%
 \mbox{Refinements} & \phi & ::= & \peq{e_1}{e_2} ~|~ \pun{e} ~|~ \ldots  \\
   %
   \mbox{Base types} & \tbase & ::= & \tbool \sep \tint \sep \tunit \\
@@ -45,12 +52,35 @@
 \end{array}
 \]
 
-Terms in refinements are limited to base types. This is important for
-soundness. The $\phi$ in the type $\tref{\tau}{x.\phi}$ is a
-refinement for the value stored in the reference. This refinement
-should be nontrivial only when $\tau$ is a base type.
+\[
+\begin{array}{ll}
+  \Gamma \vdash e \infer \tau	&\text{inference} \\
+  \Gamma \vdash e \check \tau	&\text{checking}
+\end{array}
+\]
 
-\framebox{Typing}
+\begin{mathpar}
+\hbox to \textwidth{\hfil Generally applicable rules\hfil}
+
+  \inferrule{\Gamma(x) = \tau}{\Gamma \vdash x \infer \tau}
+
+  \inferrule{
+  \Gamma \vdash e \infer \tau_1 \\ \tau_1 \subtype \tau_2
+  }{\Gamma \vdash e \check \tau_2}
+
+  \inferrule{\Gamma \vdash e \check \tau}{\Gamma \vdash e : \tau \infer \tau}
+\\\\
+  \inferrule{
+    \Gamma \vdash e_1 \infer \tau_1 \\
+    \Gamma, x : \tau_1 \vdash e_2 \infer \tau_2
+  }{\Gamma \vdash \elet{x}{e_1}{e_2} \infer \tau_2}
+
+  \inferrule{
+    \Gamma \vdash e_1 \infer \tau_1 \\
+    \Gamma, x : \tau_1 \vdash e_2 \check \tau_2
+  }{\Gamma \vdash \elet{x}{e_1}{e_2} \check \tau_2}
+\end{mathpar}
+
 \begin{mathpar}
   \begin{array}{c@{~~}|@{~~}c}
     \hline \\
@@ -58,79 +88,86 @@ should be nontrivial only when $\tau$ is a base type.
     \\
     \hline
     \\
-    
-  \inferrule{ }{\Gamma \vdash n: \{x:\tint ~|~ \peq{x}{n}\}}
+
+  \inferrule{ }{\Gamma \vdash n \check \{x:\tint ~|~ \peq{x}{n}\}}
   &
-  \inferrule{ }{\Gamma \vdash n: \tun}
+  \inferrule{ }{\Gamma \vdash n \check \tun}
   \\ \\
 
-  \inferrule{\Gamma, x: \tau_1 \vdash e: \tau_2}{\Gamma \vdash \lambda x.e: \tau_1 \to \tau_2}
+  \inferrule{\Gamma, x: \tau_1 \vdash e \check \tau_2}{\Gamma \vdash \lambda x.e \check \tau_1 \to \tau_2}
 
   &
   
-  \inferrule{\Gamma, x: \tun \vdash e: \tun}{\Gamma \vdash \lambda x.e: \tun}
+  \inferrule{\Gamma, x: \tun \vdash e \check \tun}{\Gamma \vdash \lambda x.e \check \tun}
 
   \\ \\
 
   \inferrule
       {
-        \Gamma \vdash e_1: \tau_1 \to \tau_2 \\
-        \Gamma \vdash e_2: \tau_1
+        \Gamma \vdash e_1 \infer \tau_1 \to \tau_2 \\
+        \Gamma \vdash e_2 \check \tau_1
       }
       {
-        \Gamma \vdash \eapp{e_1}{e_2}: \tau_2
+        \Gamma \vdash \eapp{e_1}{e_2} \infer \tau_2
       }
       
       &
 
    \inferrule
        {
-         \Gamma \vdash e_1: \tun \\
-         \Gamma \vdash e_2: \tun
+         \Gamma \vdash e_1 \infer \tun \\
+         \Gamma \vdash e_2 \check \tun
        }
-       {\Gamma \vdash \eapp{e_1}{e_2}: \tun}
+       {\Gamma \vdash \eapp{e_1}{e_2} \infer \tun}
 
     \\ \\
 
     \inferrule
-        {\Gamma \vdash e: \{x:\tau ~|~ \phi\}}
-        {\Gamma \vdash \eref{e}: \tref{\tau}{x.\phi}}
+        {\Gamma \vdash e \check \{x:\tau ~|~ \phi\}}
+        {\Gamma \vdash \eref{e} \check {\type{ref}_{x.\phi}\;{\tau}}}
 
         &
 
     \inferrule
-        {\Gamma \vdash e: \tun}
-        {\Gamma \vdash \eref{e}: \tun}
+        {\Gamma \vdash e \check \tun}
+        {\Gamma \vdash \eref{e} \check \tun}
 
      \\ \\
 
      \inferrule
-         {\Gamma \vdash e_1: \tref{\tau}{x.\phi} \\ \Gamma \vdash e_2: \{x: \tau ~|~ \phi\}}
-         {\Gamma \vdash \eassign{e_1}{e_2}: \tunit}
+         {\Gamma \vdash e_1 \infer {\type{ref}_{x.\phi}\;{\tau}} \\ \Gamma \vdash e_2 \check \{x: \tau ~|~ \phi\}}
+         {\Gamma \vdash \eassign{e_1}{e_2} \infer \tunit}
 
          &
 
      \inferrule
-         {\Gamma \vdash e_1: \tun \\ \Gamma \vdash e_2: \tun}
-         {\Gamma \vdash \eassign{e_1}{e_2}: \tun}
+         {\Gamma \vdash e_1 \infer \tun \\ \Gamma \vdash e_2 \check \tun}
+         {\Gamma \vdash \eassign{e_1}{e_2} \infer \tun}
 
       \\ \\
+      
+          \inferrule
+        {\Gamma \vdash e \infer {\type{ref}_{x.\phi}\;{\tau}}}
+        {\Gamma \vdash \ederef{e} \infer  \{x:\tau ~|~ \phi\} }
+
+        &
+
+    \inferrule
+        {\Gamma \vdash e \infer \tun}
+        {\Gamma \vdash \ederef{e} \infer \tun}
+
+     \\ \\
+     
+        \inferrule
+        {\Gamma \vdash \forall i, e_i \check {\type{\tau}}}
+        {\Gamma \vdash Cons \quad e_i ... \infer  \{x: \tau_{Cons} ~|True\} }
+
+
+     \\ \\
 
       \inferrule
-          {\Gamma \vdash e: \tref{\tau}{x.\phi}}
-          {\Gamma \vdash \ederef{e}: \{x:\tau~|~ \phi\}}
-
-          &
-
-      \inferrule
-          {\Gamma \vdash e: \tun}
-          {\Gamma \vdash \ederef{e}: \tun}
-
-          \\ \\
-
-      \inferrule
-          {\erase{\Gamma} \vdash \phi}
-          {\Gamma \vdash \eassert{\phi}: \{\_ : \tunit ~|~ \phi\}}
+          {\erase{\Gamma} \infer \phi}
+          {\Gamma \infer \eassert{\phi}: \{\_ : \tunit ~|~ \phi\}}
           \\ \\
 
           \hline
@@ -156,6 +193,6 @@ logic. The erasure function $\erase{\Gamma}$ is defined as follows.
 \inferrule{\erase{\Gamma} \vdash \forall x. \phi \Rightarrow \phi'}
           {\Gamma \vdash \{x:\tau ~|~ \phi\} \subtype \{x:\tau ~|~ \phi'\}} \and
           %
-\mbox{(Standard rules for subtyping are included)}          
+\mbox{(Standard rules for subtyping are included)} 
 \end{mathpar}
 \end{document}
