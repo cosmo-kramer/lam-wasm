@@ -1,0 +1,118 @@
+=====================   Input 1 ======================
+() 
+
+list = Nil 
+| Cons {x: int | x = 2} {x: list | True}
+
+let x = 1 : {x: int | x = 2} in Cons (x + x), Nil,
+
+=====================   Output 1 ======================
+
+abhishek@abhishek-Inspiron-3542:~/lam$ ./lam f.ss
+formula 1 is: forall qwerty:int. qwerty = 1 /\ true -> qwerty = 2 /\ true
+Fatal error: exception Utils.Error("Why3 failed!\n")
+
+=====================   Input 2 ======================
+() 
+
+list = Nil 
+| Cons {x: int | x = 2} {x: list | True}
+
+let x = 2 in Cons (x + x), Nil,
+
+
+=====================   Output 2 ======================
+
+formula 1 is: true
+formula 1 is: true
+formula 1 is:
+forall xqwerty:int. xqwerty = (2 + 2) /\ true -> xqwerty = 2 /\ true
+Fatal error: exception Utils.Error("Why3 failed!\n")
+
+=====================   Input 3 ======================
+() 
+
+list = Nil 
+| Cons {x: int | x = 2} {x: list | True}
+
+let x = 1 in Cons (x + x), Nil,
+
+
+=====================   Output 3 ======================
+
+abhishek@abhishek-Inspiron-3542:~/lam$ ./lam f.ss
+formula 1 is: true
+formula 1 is: true
+formula 1 is:
+forall xqwerty:int. xqwerty = (1 + 1) /\ true -> xqwerty = 2 /\ true
+formula 1 is: true
+formula 1 is: true
+formula 1 is: true
+Compiled Successfully
+
+=====================   Input 4 ======================
+() 
+
+list = Nil 
+| Cons {x: int | x < 3} {x: list | True}
+
+let x = 2 in Cons (x + x), Nil,
+
+
+=====================   Output 4 ======================
+
+abhishek@abhishek-Inspiron-3542:~/lam$ ./lam f.ss
+formula 1 is: true
+formula 1 is: true
+formula 1 is:
+forall xqwerty:int. xqwerty = (2 + 2) /\ true -> xqwerty <= 3 /\ true
+Fatal error: exception Utils.Error("Why3 failed!\n")
+
+
+=====================   Input 5 ======================
+
+
+() 
+
+list = Nil 
+| Cons {z: int | z < 3}  {r: list | True}
+
+let x = ((?y.y) : {z: int | True} -> {z: int| True}) in Cons (x 2), Nil,
+
+=====================   Output 5 ======================
+
+Ignoring!
+Ignoring!
+formula 1 is: true
+formula 1 is: true
+formula 1 is: forall z:int. true /\ true -> z <= 3 /\ true
+Fatal error: exception Utils.Error("Why3 failed!\n")
+
+=====================   Input 6 ======================
+
+()
+
+let x = ((?y.(y+y)) : {z: int | z = 1 } -> {z: int| z < 4}) in x 
+
+=====================   Output 6 ======================
+
+
+formula 1 is: true
+formula 1 is: true
+formula 1 is:
+forall yqwerty:int. yqwerty = (1 + 1) /\ true -> yqwerty <= 4 /\ true
+Compiled Successfully
+
+=====================   Input 7 ======================
+
+()
+
+let x = ((?y.(y+y)) : {z: int | z = 2 } -> {z: int| z < 3}) in x 
+=====================   Output 7 ======================
+
+formula 1 is: true
+formula 1 is: true
+formula 1 is:
+forall yqwerty:int. yqwerty = (2 + 2) /\ true -> yqwerty <= 3 /\ true
+Fatal error: exception Utils.Error("Why3 failed!\n")
+
