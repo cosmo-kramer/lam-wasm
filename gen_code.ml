@@ -100,21 +100,16 @@ and compile_cons_list l ctx bv st = match l with
           ("(i64.add (i64.shl (i32.const "^cd1^" (i32.const 32)) "^cd2^")", st2)
 
 let rec gen_webAsm (t: tcompUnit) ctx st = match t with
-  | Lcomp (name, t1, t2) -> 
- Context.iter (fun k v -> let ty = infer_exp ctx t1 in
+  | Lcomp (name, t1, t2) -> let ty = infer_exp ctx t1 in
                            let ctx = Context.add name ty ctx in
                             let st = { st with globals = Global_ctx.add name ty st.globals } in 
                             let (cd1, st) = gen_webAsm_term (match t1 with 
                             | Abs (fn, _, body) -> Abs (fn, name, body) 
                             | _ -> t1) ctx BoundVars.empty st None in
                             let (cd2, st) = gen_webAsm t2 ctx st in
-                             Printf.printf "DDDDDDDDDD\n\n";
                             (cd1^"\n (set_global $"^name^")\n"^cd2, st)
 
   | Lterm t2 ->  
-                            Printf.printf "++    %s   ++\n" (term_to_string t2);
-                  Context.iter (fun k v -> Printf.printf "%s   has type    %s\n" k (pr_type v)) ctx; Printf.printf "Infering %s\n\n" (term_to_string t2);
-
                   infer_exp ctx t2;
                             let (cd2, st) = gen_webAsm_term t2 ctx BoundVars.empty st None in
                             (cd2, st)

@@ -21,9 +21,11 @@ let read_to_list fname = let inp = open_in fname in
 
 let () = let modules = ref [] in
          for i = 1 to Array.length Sys.argv - 1 do
-                let code = String.concat ""  (List.rev (read_to_list Sys.argv.(i))) in
-                module_name := Sys.argv.(i);
-                modules := (parse_from_string code)::!modules;
+                if Sys.argv.(i) = "--v" then debug := true else
+                (let code = String.concat ""  (List.rev (read_to_list Sys.argv.(i))) in
+                 module_name := Sys.argv.(i);
+                 modules := (parse_from_string code)::!modules;
+                ) 
           done; 
           let fl = open_out "test.wast" in
           Printf.fprintf fl "%s" (link !modules);

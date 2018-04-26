@@ -120,7 +120,7 @@ and check_ref ctx (erased: refinement list) (ref1: string*refinement) (ref2: str
         ) in
         check_alt_ergo fml 
          
-and subtype t2 ty ctx : bool = Printf.printf "%s <>  %s\n\n"  (pr_type t2) (pr_type ty);match (t2, ty) with
+and subtype t2 ty ctx : bool = if !debug then (Printf.printf "%s <>  %s\n\n" (pr_type t2) (pr_type ty)) else ();  match (t2, ty) with
         | (Tun, R (x, _, Un (Var y))) -> y = x
         | (R (x, _, Un (Var y)), Tun) -> x = y
         | (R (x, t1, phi1), (R (y, t2, phi2))) -> Base_types.mem t1 !base_types && Base_types.mem t2 !base_types && (t1=t2) && (check_ref ctx (erase ctx) (x, phi1) (y, phi2); true)    
@@ -131,11 +131,11 @@ and subtype t2 ty ctx : bool = Printf.printf "%s <>  %s\n\n"  (pr_type t2) (pr_t
 and sub erased phi = match erased with
 | [] -> phi
 | h::t -> match h with
-        | Eq (t1, t2) -> (match (t1, t2) with 
+        | Eq (t1, t2) | Leq (t1, t2) -> (match (t1, t2) with 
                          | (Var x, Var y) -> sub t (substInRefinement y (Var x) phi)
                          | (Var x, e) ->  sub t (substInRefinement x e phi)
                          | _ -> sub t phi)
-        | _ -> Printf.printf "Ignoring!\n"; sub t phi
+        | _ -> sub t phi
                                  
  
 

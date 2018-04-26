@@ -149,6 +149,7 @@ let add_base_type bT: unit = let Base (x, _) = bT in (base_types := Base_types.a
 
 let dummy = (add_base_type intB); add_base_type unitB 
 
+let debug = ref false  
 let func_num = ref 0
 let get_func_num () = (func_num := !func_num + 1; !func_num) 
 let low_integrity = ref 0
